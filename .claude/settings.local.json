@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "Read(//c/Program Files/GitHub CLI/**)",
+      "Read(//c/Users/mditr/AppData/Local/Programs/GitHub CLI/**)",
+      "Bash(gh --version)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" auth status)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" repo create SelfCall --public --description \"Self-hosted 1-on-1 video calls: LiveKit + FastAPI + React + Android\" --source=. --remote=origin)"
+    ]
+  }
+}
