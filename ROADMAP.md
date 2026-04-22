@@ -99,13 +99,14 @@
 ## Этап 4 — Android приложение
 
 - [ ] Установить Android Studio
-- [ ] Создать проект (Kotlin, Jetpack Compose, minSdk 24)
-- [ ] Зависимость `io.livekit:livekit-android`
-- [ ] Разрешения: CAMERA, RECORD_AUDIO, INTERNET
-- [ ] Экран ввода имени (SharedPreferences)
-- [ ] Экран списка комнат (Retrofit/Ktor к `api.if-x.ru`)
-- [ ] Экран звонка (LocalVideoTrack, RemoteVideoTrack, контролы)
-- [ ] Runtime-запрос разрешений
+- [x] Создать проект (Kotlin, Jetpack Compose, minSdk 26) — Gradle-скаффолд
+- [x] Зависимости: `livekit-android` + `livekit-android-compose-components`
+- [x] Разрешения: CAMERA, RECORD_AUDIO, INTERNET
+- [x] Экран ввода имени (SharedPreferences)
+- [x] Экран списка комнат (Ktor клиент к API)
+- [x] Экран звонка (`RoomScope` + `VideoTrackView` + кнопка выхода)
+- [x] Runtime-запрос разрешений (ActivityResultContracts)
+- [ ] Открыть проект в Android Studio, gradle sync
 - [ ] Сборка APK, тест на реальном устройстве
 
 **Результат этапа:** APK для Android с рабочими звонками
