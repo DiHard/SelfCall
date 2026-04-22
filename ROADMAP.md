@@ -68,14 +68,14 @@
 
 ## Этап 2 — Python бэкенд (FastAPI)
 
-- [ ] Структура проекта (`backend/app/`, `requirements.txt`, `Dockerfile`)
-- [ ] Конфиг через `.env` (LiveKit API key/secret, URL, CORS origins)
-- [ ] `GET /rooms` → список 5 фиксированных комнат
-- [ ] `POST /token` → генерация JWT для LiveKit
-- [ ] CORS для `app.if-x.ru` и Android
-- [ ] Добавить сервис `backend` в `docker-compose.yml`
-- [ ] Nginx: проксирование `api.if-x.ru` → `backend:8000`
-- [ ] Деплой, проверка через curl
+- [x] Структура проекта (`backend/app/`, `requirements.txt`, `Dockerfile`)
+- [x] Конфиг через `.env` (LiveKit API key/secret, URL, CORS origins)
+- [x] `GET /rooms` → список 5 фиксированных комнат
+- [x] `POST /token` → генерация JWT для LiveKit
+- [x] CORS для `app.if-x.ru` и Android
+- [x] Добавить сервис `backend` в `docker-compose.yml`
+- [x] Nginx: проксирование `api.if-x.ru` → `backend:8000` (уже готово из Этапа 1)
+- [ ] Деплой, проверка через curl (после получения VPS)
 
 **Результат этапа:** API публично доступно, выдаёт рабочие токены
 

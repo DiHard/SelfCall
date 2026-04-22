@@ -22,6 +22,21 @@ services:
       - ./certs:/certs:ro
     command: -c /etc/coturn/turnserver.conf
 
+  # ----- Python FastAPI backend (tokens + rooms list) -----
+  backend:
+    build: ../backend
+    container_name: selfcall-backend
+    restart: unless-stopped
+    # Bind to host loopback only — nginx (host net) proxies api.if-x.ru to it.
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_URL=wss://${LIVEKIT_DOMAIN}
+      - CORS_ORIGINS=https://${APP_DOMAIN},http://localhost:5173,http://localhost:3000
+      - TOKEN_TTL_MINUTES=60
+
   # ----- Nginx reverse proxy + TLS -----
   nginx:
     image: nginx:1.27-alpine
