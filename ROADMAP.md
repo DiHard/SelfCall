@@ -83,14 +83,14 @@
 
 ## Этап 3 — React приложение
 
-- [ ] Инициализация через Vite + React + TypeScript
-- [ ] Зависимости: `@livekit/components-react`, `livekit-client`
-- [ ] Экран ввода имени (сохранение в localStorage)
-- [ ] Экран списка комнат (запрос `GET /rooms`)
-- [ ] Экран звонка (компонент `LiveKitRoom`, видео-тайлы, кнопки mute/камера/выход)
-- [ ] Роутинг между экранами
-- [ ] Сборка `dist/`, Nginx отдаёт статику на `app.if-x.ru`
-- [ ] Проверка React ↔ React звонка
+- [x] Инициализация через Vite + React + TypeScript
+- [x] Зависимости: `@livekit/components-react`, `livekit-client`, `react-router-dom`
+- [x] Экран ввода имени (сохранение в localStorage)
+- [x] Экран списка комнат (запрос `GET /rooms`)
+- [x] Экран звонка (компонент `LiveKitRoom` + `VideoConference`)
+- [x] Роутинг между экранами (React Router)
+- [ ] Сборка `dist/`, Nginx отдаёт статику на `app.if-x.ru` (деплой — после VPS)
+- [ ] Проверка React ↔ React звонка (после деплоя или через LiveKit Cloud)
 
 **Результат этапа:** работающий веб-клиент на `https://app.if-x.ru`
 
