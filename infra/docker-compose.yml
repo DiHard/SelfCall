@@ -27,9 +27,9 @@ services:
     image: nginx:1.27-alpine
     container_name: selfcall-nginx
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    # Host networking so nginx can reach LiveKit (host net) and backend (127.0.0.1)
+    # without Docker bridge indirection. Ports 80/443 are bound directly.
+    network_mode: host
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
