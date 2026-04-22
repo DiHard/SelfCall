@@ -36,13 +36,13 @@
 - [ ] Создать A-записи в DNS: `app.if-x.ru`, `api.if-x.ru`, `livekit.if-x.ru` → IP VPS
 
 ### 1.2. Подготовка локальных конфигов (можно делать до получения VPS)
-- [ ] `infra/docker-compose.yml` — LiveKit + coturn + Nginx
-- [ ] `infra/livekit/livekit.yaml` — конфиг LiveKit
-- [ ] `infra/coturn/turnserver.conf` — конфиг TURN-сервера
-- [ ] `infra/nginx/` — конфиги для 3 поддоменов
-- [ ] `infra/scripts/setup.sh` — первичная настройка сервера (firewall, Docker, swap)
-- [ ] `infra/.env.example` — шаблон переменных окружения (ключи, домены)
-- [ ] `infra/README.md` — инструкция по деплою
+- [x] `infra/docker-compose.yml` — LiveKit + coturn + Nginx
+- [x] `infra/livekit/livekit.yaml` — конфиг LiveKit
+- [x] `infra/coturn/turnserver.conf` — конфиг TURN-сервера
+- [x] `infra/nginx/` — конфиги для 3 поддоменов
+- [x] `infra/scripts/01-server-init.sh` — первичная настройка сервера (firewall, Docker, swap)
+- [x] `infra/.env.example` — шаблон переменных окружения (ключи, домены)
+- [x] `infra/README.md` — инструкция по деплою
 
 ### 1.3. Настройка сервера
 - [ ] SSH-доступ по ключу, отключить парольный вход
