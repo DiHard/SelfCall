@@ -1,0 +1,52 @@
+services:
+  # ----- LiveKit SFU -----
+  livekit:
+    image: livekit/livekit-server:v1.8
+    container_name: selfcall-livekit
+    restart: unless-stopped
+    network_mode: host
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+
+  # ----- TURN / STUN server -----
+  coturn:
+    image: coturn/coturn:4.6
+    container_name: selfcall-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./certs:/certs:ro
+    command: -c /etc/coturn/turnserver.conf
+
+  # ----- Nginx reverse proxy + TLS -----
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: selfcall-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/letsencrypt:ro
+      - ./certbot-webroot:/var/www/certbot:ro
+      - frontend_dist:/usr/share/nginx/html:ro
+    depends_on:
+      - livekit
+
+  # ----- Certbot for Let's Encrypt -----
+  certbot:
+    image: certbot/certbot:latest
+    container_name: selfcall-certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - ./certbot-webroot:/var/www/certbot
+    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+
+volumes:
+  frontend_dist:

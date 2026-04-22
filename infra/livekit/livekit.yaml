@@ -1,0 +1,23 @@
+# LiveKit server config
+# Docs: https://docs.livekit.io/home/self-hosting/deployment/
+
+port: 7880
+
+rtc:
+  # All WebRTC media goes through a single UDP port (simpler firewall rules)
+  udp_port: 7882
+  # TCP fallback for restrictive networks
+  tcp_port: 7881
+  # Auto-detect public IP of the VPS
+  use_external_ip: true
+
+# API keys: must match .env (LIVEKIT_API_KEY / LIVEKIT_API_SECRET)
+# These are injected via env var LIVEKIT_KEYS at runtime,
+# so no need to hardcode here.
+
+# Logging
+log_level: info
+
+# Turn-server integration (we run our own coturn on host)
+turn:
+  enabled: false   # clients will reach coturn directly, LiveKit does not need embedded TURN
