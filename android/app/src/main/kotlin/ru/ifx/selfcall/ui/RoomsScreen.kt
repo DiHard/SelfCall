@@ -64,7 +64,10 @@ fun RoomsScreen(
                         onClick = { onJoin(room.name) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(room.name, modifier = Modifier.fillMaxWidth())
+                        Text(
+                            room.display.ifBlank { room.name },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }

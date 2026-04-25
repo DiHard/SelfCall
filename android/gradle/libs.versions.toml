@@ -8,8 +8,8 @@ composeBom = "2024.12.01"
 navigationCompose = "2.8.5"
 kotlinxSerialization = "1.7.3"
 ktor = "2.3.12"
-livekit = "2.13.2"
-livekitCompose = "1.5.2"
+livekit = "2.24.1"
+livekitCompose = "2.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

@@ -3,7 +3,7 @@ package ru.ifx.selfcall.data
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class Room(val name: String)
+data class Room(val name: String, val display: String = "")
 
 @Serializable
 data class RoomsResponse(val rooms: List<Room>)

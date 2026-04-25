@@ -24,6 +24,14 @@ import ru.ifx.selfcall.data.Api
 import ru.ifx.selfcall.data.TokenResponse
 import ru.ifx.selfcall.data.UsernameStore
 
+private val ROOM_DISPLAY_NAMES = mapOf(
+    "room-1" to "Комната «Млечный путь»",
+    "room-2" to "Комната «Андромеда»",
+    "room-3" to "Комната «Треугольник»",
+    "room-4" to "Комната «Центавр»",
+    "room-5" to "Комната «Водоворот»",
+)
+
 private sealed interface CallState {
     data object Permissions : CallState
     data object Loading : CallState
@@ -41,6 +49,7 @@ fun CallScreen(roomName: String, onLeave: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val username = remember { UsernameStore(ctx).username }
+    val displayName = remember { ROOM_DISPLAY_NAMES[roomName] ?: roomName }
 
     val hasPermissions = remember {
         REQUIRED_PERMISSIONS.all {
@@ -81,7 +90,7 @@ fun CallScreen(roomName: String, onLeave: () -> Unit) {
             onRequest = { permLauncher.launch(REQUIRED_PERMISSIONS) },
             onCancel = onLeave,
         )
-        CallState.Loading -> CenterMessage("Подключение к «$roomName»…")
+        CallState.Loading -> CenterMessage("Подключение к «$displayName»…")
         is CallState.Error -> ErrorScreen(message = s.message, onBack = onLeave)
         is CallState.Ready -> ActiveCall(token = s.token, onLeave = onLeave)
     }
@@ -132,7 +141,7 @@ private fun ActiveCall(token: TokenResponse, onLeave: () -> Unit) {
         connect = true,
         onDisconnected = { onLeave() },
     ) {
-        val tracks = rememberTracks(
+        val tracks by rememberTracks(
             sources = listOf(Track.Source.CAMERA),
             usePlaceholders = setOf(),
         )
@@ -145,7 +154,7 @@ private fun ActiveCall(token: TokenResponse, onLeave: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                items(tracks, key = { it.publication?.sid ?: it.participant.sid.value }) { track ->
+                items(tracks) { track ->
                     VideoTrackView(
                         trackReference = track,
                         modifier = Modifier.aspectRatio(3f / 4f),

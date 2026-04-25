@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 class Room(BaseModel):
     name: str
+    display: str
 
 
 class RoomsResponse(BaseModel):

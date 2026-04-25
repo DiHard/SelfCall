@@ -42,8 +42,8 @@ export function RoomsScreen() {
         <ul className="rooms">
           {rooms.map((r) => (
             <li key={r.name}>
-              <button onClick={() => navigate(`/room/${r.name}`)}>
-                {r.name}
+              <button onClick={() => navigate(`/room/${r.name}`, { state: { display: r.display } })}>
+                {r.display}
               </button>
             </li>
           ))}

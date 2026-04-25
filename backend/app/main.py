@@ -23,9 +23,21 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+_GALAXY_NAMES: dict[str, str] = {
+    "room-1": "Млечный путь",
+    "room-2": "Андромеда",
+    "room-3": "Треугольник",
+    "room-4": "Центавр",
+    "room-5": "Водоворот",
+}
+
+
 @app.get("/rooms", response_model=RoomsResponse)
 def list_rooms() -> RoomsResponse:
-    return RoomsResponse(rooms=[Room(name=r) for r in settings.rooms])
+    return RoomsResponse(rooms=[
+        Room(name=r, display=f"Комната «{_GALAXY_NAMES.get(r, r)}»")
+        for r in settings.rooms
+    ])
 
 
 @app.post("/token", response_model=TokenResponse)

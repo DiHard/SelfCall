@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config";
 
-export type Room = { name: string };
+export type Room = { name: string; display: string };
 
 export type TokenResponse = {
   token: string;

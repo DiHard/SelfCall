@@ -128,8 +128,64 @@ button.link:hover {
   background: var(--panel);
 }
 
-.call-container {
-  width: 100vw;
-  height: 100vh;
+.call-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   overflow: hidden;
+}
+
+.call-videos {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ctrl-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ctrl-bar button {
+  padding: 10px 16px;
+  font-size: 14px;
+  background: #2a2c36;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.ctrl-bar button:hover:not(:disabled) {
+  background: #35374a;
+}
+
+.ctrl-bar button.off {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--error);
+}
+
+.ctrl-bar button.off:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.ctrl-bar button.active {
+  background: rgba(192, 132, 252, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ctrl-bar button.leave {
+  background: #dc2626cc;
+  color: #fff;
+  border-color: transparent;
+}
+
+.ctrl-bar button.leave:hover:not(:disabled) {
+  background: #dc2626;
 }
