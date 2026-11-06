@@ -1,17 +1,34 @@
-# CLAUDE.md
+# AGENTS.md
 
-Памятка для Claude Code по монорепо **SelfCall** (self-hosted 1-на-1 звонки на LiveKit).
+Памятка для AI-агентов (Claude Code, Codex и др.) по монорепо **SelfCall** (свой сервис видеовстреч по ссылке, как Яндекс Телемост, на LiveKit).
 
 Общий обзор, архитектура, статус и план — в [README.md](README.md), [STATUS.md](STATUS.md), [ROADMAP.md](ROADMAP.md).
 
 ## Структура
 
 ```
-backend/    FastAPI (Python 3) — токены + список комнат
+backend/    FastAPI (Python 3) — встречи по ссылке, токены LiveKit, лимиты
 frontend/   React + Vite + TypeScript
-android/    Kotlin + Jetpack Compose
-infra/      Docker Compose: LiveKit + coturn + Nginx + certbot
+android/    Kotlin + Jetpack Compose (старая версия с комнатами, ещё не переведена на новый API)
+infra/      Docker Compose: LiveKit + coturn + Nginx + certbot (продакшен)
+infra/local/  Docker Compose для локального запуска всего сервиса
 ```
+
+## Локальный запуск всего сервиса (Docker)
+
+```bash
+docker compose -f infra/local/docker-compose.yml up --build -d   # → http://localhost:8080
+docker compose -f infra/local/docker-compose.yml down
+```
+
+На Mac Docker работает через Colima: если `docker` не отвечает, сначала `colima start`.
+
+## Соглашения
+
+- Интерфейс только на русском. Перед изменениями UI прогонять скиллы better-* (better-interface и профильные).
+- Цвета — только через токены в `frontend/src/index.css`. Пары контраста там проверены по WCAG: при смене цвета проверять заново.
+- Ошибки API приходят как `{"detail": {"code", "message"}}`, клиенты показывают свой текст по `code`.
+- Комнаты LiveKit создаёт только бэкенд (`room.auto_create: false`), иначе не работает лимит встреч.
 
 ## Команды запуска и сборки
 
@@ -19,10 +36,11 @@ infra/      Docker Compose: LiveKit + coturn + Nginx + certbot
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate              # Windows (bash: source .venv/bin/activate)
-pip install -r requirements.txt
+source .venv/bin/activate           # macOS / Linux (Windows: .venv\Scripts\activate)
+pip install -r requirements-dev.txt
 cp .env.example .env                # заполнить LIVEKIT_API_KEY/SECRET/URL
 uvicorn app.main:app --reload --port 8000
+pytest -q                           # тесты
 ```
 
 - Swagger: http://localhost:8000/docs
@@ -33,7 +51,7 @@ uvicorn app.main:app --reload --port 8000
 
 ```bash
 npm install
-cp .env.example .env                # VITE_API_BASE_URL=http://localhost:8000
+cp .env.example .env                # API по /api, Vite проксирует его на бэкенд
 npm run dev                         # dev-сервер на http://localhost:5173
 npm run build                       # tsc -b && vite build → dist/
 npm run lint                        # eslint
@@ -83,6 +101,6 @@ docker compose logs -f livekit
 
 ```bash
 curl https://api.if-x.ru/health      # {"status":"ok"}
-curl https://api.if-x.ru/rooms       # список 5 комнат
+curl -X POST https://api.if-x.ru/api/meetings   # {"id":"abc-defg-hjk"}
 curl -I https://livekit.if-x.ru      # LiveKit отвечает OK
 ```

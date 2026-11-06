@@ -15,6 +15,10 @@ rtc:
 # These are injected via env var LIVEKIT_KEYS at runtime,
 # so no need to hardcode here.
 
+# Rooms are created only by the backend: that is how the meeting limit works
+room:
+  auto_create: false
+
 # Logging
 log_level: info
 

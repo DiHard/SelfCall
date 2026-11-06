@@ -2,33 +2,43 @@
 
 React SPA (Vite + TypeScript + LiveKit Components).
 
-Three screens:
-1. **`/`** — enter display name (saved to localStorage)
-2. **`/rooms`** — list of 5 fixed rooms from `GET /rooms`
-3. **`/room/:roomName`** — video call via `<LiveKitRoom>` + `<VideoConference>`
+## Экраны
 
-## Local development
+| Путь | Экран |
+|------|-------|
+| `/` | Главная: «Создать встречу» и вход по ссылке или коду |
+| `/m/:id` | Встреча: проверка ссылки → экран перед входом (превью камеры, проверка микрофона, выбор устройств, имя по желанию) → звонок → экран «Вы вышли» |
 
-Prerequisite: backend running on `http://localhost:8000`.
+В звонке:
+- сетка участников;
+- при демонстрации экрана экран выводится крупно, камеры уходят в ленту;
+- кнопки микрофона и камеры с выбором устройства;
+- демонстрация экрана (в Chrome — со звуком вкладки);
+- копирование ссылки, выход.
+
+## Файлы
+
+- `src/pages/HomePage.tsx`, `src/pages/MeetingPage.tsx` — экраны
+- `src/components/PreJoin.tsx` — экран перед входом
+- `src/components/CallRoom.tsx` — звонок
+- `src/api.ts` — запросы к `/api`
+- `src/lib.ts` — ссылки, настройки в localStorage, буфер обмена
+- `src/index.css` — все стили и цветовые токены
+
+## Локальная разработка
+
+API вызывается по относительному пути `/api`. В `npm run dev` Vite проксирует его на бэкенд (`VITE_DEV_API_PROXY`, по умолчанию `http://localhost:8000`).
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env   # VITE_API_BASE_URL defaults to localhost:8000
-npm run dev
+npm run dev        # http://localhost:5173
+npm run lint
+npm run build      # tsc -b && vite build → dist/
 ```
 
-Open http://localhost:5173 in two browser windows (one regular, one incognito)
-to test a 1-on-1 call locally against LiveKit Cloud dev creds or your VPS.
+Для dev-режима нужны запущенные бэкенд и LiveKit. Проще всего поднять их через Docker из корневого [README](../README.md#локальный-запуск), а фронт запустить через `npm run dev`. Порт бэкенда в Docker наружу не открыт, поэтому в `.env` укажите `VITE_DEV_API_PROXY=http://localhost:8080`: Vite будет ходить в API через nginx контейнера.
 
-## Build
+## Docker
 
-```bash
-npm run build
-# Output in dist/ — static HTML/JS/CSS, copy to any web server
-```
-
-## Deployment
-
-The `dist/` contents are mounted into the nginx container via a named volume
-(`frontend_dist`) and served from `https://app.if-x.ru`.
+[Dockerfile](Dockerfile) собирает приложение и раздаёт его через nginx ([nginx.conf](nginx.conf)), а `/api/` проксирует в сервис `backend`.

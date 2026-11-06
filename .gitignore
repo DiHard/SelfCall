@@ -1,8 +1,9 @@
 # Python
-backend/__pycache__/
+__pycache__/
 backend/.venv/
 backend/*.pyc
 backend/.env
+backend/.pytest_cache/
 
 # Node / React
 frontend/node_modules/

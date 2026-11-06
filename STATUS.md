@@ -1,95 +1,40 @@
 # SelfCall — текущий статус
 
-> Этот файл — точка входа, если возвращаешься к проекту на другой машине
-> или через неделю. Читай сверху вниз. Подробный чек-лист — в [ROADMAP.md](ROADMAP.md).
+> Точка входа, если возвращаешься к проекту. Подробный чек-лист — в [ROADMAP.md](ROADMAP.md).
 
-## Что готово (код)
+## Ноябрь 2026: из эксперимента — в рабочий сервис
+
+Раньше было так: ввести имя → выбрать одну из 5 постоянных комнат. Теперь сервис работает как Телемост: встреча по ссылке, вход без регистрации, лимиты на сервере.
 
 | Компонент | Состояние |
 |-----------|-----------|
-| **infra/** — Docker Compose, LiveKit, coturn, Nginx, certbot, скрипты init | ✅ Полностью написан, **не задеплоен** (ждём VPS) |
-| **backend/** — FastAPI: `GET /health`, `GET /rooms`, `POST /token` | ✅ Локально smoke-тестирован, JWT валиден |
-| **frontend/** — React + Vite + `@livekit/components-react` | ✅ `tsc -b` и `vite build` проходят |
-| **android/** — Kotlin + Compose + `livekit-android` + `livekit-android-compose-components` | ⚠️ Scaffold написан вслепую (без Android Studio), gradle sync ещё не прогонялся |
+| **backend/** | ✅ Встречи по ссылке, подписанные ID, лимиты, автозакрытие, 8 тестов |
+| **frontend/** | ✅ Главная, экран перед входом, звонок с демонстрацией экрана. Проверен по набору скиллов better-* (доступность, раскладка, тексты, типографика, цвета, полировка) |
+| **infra/local/** | ✅ Весь сервис запускается одной командой в Docker. Звонок проверен с тестовым ботом LiveKit |
+| **infra/** (продакшен) | ⚠️ Конфиги подправлены под новый бэкенд, но не переделаны под сервер в Армении. Это этап 3 |
+| **android/** | ⚠️ Старая версия с 5 комнатами, с новым API не работает. Это этап 4 |
 
-## Что блокирует продолжение
+## Что проверено вживую
 
-1. **Нет VPS.** Заказан тариф **Старт-3** у **NetAngels** (Ubuntu 24.04, 2 vCPU / 2 GB RAM / 10 GB). Ждём получения IP.
-2. **Нет Android Studio.** Пока не ставили — нужно для gradle sync и сборки APK.
+- Создание встречи, проверка ссылки, вход, выход, экран «Вы вышли».
+- Звонок с ботом через LiveKit в Docker: видео доходит, раскладка «сетка» и «крупно + лента».
+- Неверная ссылка → «Встреча не найдена».
+- Пустая встреча закрывается сама примерно через 2 минуты после выхода последнего участника.
+- Ширина 320–360px (телефон), светлая и тёмная темы.
 
-## Как продолжить работу на другой машине
+**Не проверено:** настоящая камера и микрофон (встроенный браузер, в котором шла проверка, их блокирует) и демонстрация экрана. Их стоит проверить вручную в Chrome или Safari на http://localhost:8080.
 
-### Первое клонирование
+## Следующий шаг — этап 3, деплой на сервер в Армении
 
-```bash
-git clone git@github.com:DiHard/SelfCall.git
-cd SelfCall
-```
+Нужно от владельца:
+1. Домен для ссылок, например `call.if-x.ru`.
+2. Что уже работает на сервере (nginx на 80/443?), сколько у него памяти и процессоров.
+3. Был ли развёрнут старый вариант на NetAngels и можно ли его выключить.
 
-### Локальная разработка backend
+## Ключевые решения
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# Заполнить LIVEKIT_API_KEY / LIVEKIT_API_SECRET / LIVEKIT_URL
-uvicorn app.main:app --reload --port 8000
-```
-
-### Локальная разработка frontend
-
-```bash
-cd frontend
-npm install
-cp .env.example .env             # VITE_API_BASE_URL=http://localhost:8000
-npm run dev
-```
-
-### Android
-
-Открыть папку `android/` в Android Studio. Gradle wrapper JAR не закоммичен,
-поэтому при первом sync AS попросит его сгенерировать — согласиться.
-Подробности: [android/README.md](android/README.md).
-
-## Следующий конкретный шаг
-
-**После получения IP от NetAngels:**
-
-1. Создать три A-записи в DNS панели NetAngels:
-   - `app.if-x.ru`    → IP
-   - `api.if-x.ru`    → IP
-   - `livekit.if-x.ru` → IP
-2. Дождаться распространения (5–30 минут). Проверить: `nslookup app.if-x.ru`.
-3. Пройти по [infra/README.md](infra/README.md) — там пошаговый деплой:
-   - SSH на VPS
-   - клонировать репо
-   - `bash scripts/01-server-init.sh` (Docker, ufw, swap)
-   - `bash scripts/gen-secrets.sh` → вставить в `.env`
-   - Выпустить TLS-сертификаты через certbot
-   - `docker compose up -d`
-4. Локальный smoke-тест: `curl https://api.if-x.ru/rooms`
-5. Сбилдить фронт и положить `dist/` в volume `frontend_dist`
-6. Открыть `https://app.if-x.ru` в двух окнах — первый React↔React звонок
-
-**После этого:**
-- Поднять Android Studio, открыть `android/`, запустить на телефоне
-- Кросс-платформенный тест: React ↔ Android
-
-## Ключевые решения по проекту
-
-- **Monorepo** — проще синхронизировать изменения API между клиентами
-- **Single VPS, host networking для LiveKit/coturn/Nginx** — UDP media через
-  Docker userland proxy даёт packet loss; host net этого избегает
-- **3 поддомена** — чистое разделение, у каждого свой сертификат, независимый деплой
-- **5 фиксированных комнат без авторизации** — минимум для проверки гипотезы;
-  потом можно добавить динамические комнаты + авторизацию
-- **minSdk 26 на Android** — позволяет обойтись adaptive иконками без PNG-фолбэков
-
-## Полезные ссылки
-
-- Репо: https://github.com/DiHard/SelfCall
-- LiveKit docs: https://docs.livekit.io/home/self-hosting/
-- LiveKit Android SDK: https://github.com/livekit/client-sdk-android
-- LiveKit Components Android: https://github.com/livekit/components-android
+- **Без базы данных.** Встреча — это комната LiveKit, ID подписан HMAC. Ссылка работает всегда: закрытая встреча создаётся заново при входе.
+- **Комнаты создаёт только бэкенд** (`room.auto_create: false` в LiveKit). Иначе лимит на число встреч можно обойти.
+- **API на том же домене, что и сайт** (`/api`). Не нужен CORS, и проще с Android App Links: одному домену нужен один `assetlinks.json`.
+- **Экран звонка всегда тёмный**, остальные экраны следуют теме системы.
+- **Monorepo, Docker Compose** — и локально, и на сервере.

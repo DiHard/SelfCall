@@ -1,22 +1,25 @@
 from pydantic import BaseModel, Field
 
 
-class Room(BaseModel):
-    name: str
-    display: str
+class MeetingCreated(BaseModel):
+    id: str
 
 
-class RoomsResponse(BaseModel):
-    rooms: list[Room]
+class MeetingInfo(BaseModel):
+    id: str
+    active: bool
+    participants: int
+    max_participants: int
 
 
-class TokenRequest(BaseModel):
-    room: str = Field(min_length=1, max_length=64)
-    username: str = Field(min_length=1, max_length=64)
+class JoinRequest(BaseModel):
+    # Optional: people may join without typing a name
+    name: str | None = Field(default=None, max_length=40)
 
 
-class TokenResponse(BaseModel):
+class JoinResponse(BaseModel):
     token: str
     url: str
-    room: str
+    meeting_id: str
     identity: str
+    name: str
