@@ -1,65 +1,59 @@
+# Продакшен SelfCall на сервере, где уже работают другие проекты (Gamma).
+#
+# Наружу ничего не открывается, кроме портов медиа LiveKit (TCP 7881, UDP 7882).
+# Сайт, /api и сигналинг /rtc слушают только 127.0.0.1:${WEB_PORT}, туда проксирует
+# nginx хоста (host-nginx/selfcall.conf.template), он же отвечает за HTTPS.
+#
+# Запуск: cd infra && sudo docker compose up -d --build   (подробно — README.md)
+name: selfcall
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
-  # ----- LiveKit SFU -----
   livekit:
-    image: livekit/livekit-server:v1.8
-    container_name: selfcall-livekit
+    image: livekit/livekit-server:v1.13.11
     restart: unless-stopped
-    network_mode: host
     command: --config /etc/livekit.yaml
     volumes:
       - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
     environment:
-      - "LIVEKIT_KEYS=${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      # Внешний IP, который LiveKit сообщает браузерам для медиа
+      NODE_IP: ${NODE_IP:?NODE_IP не задан в .env}
+    ports:
+      - "7881:7881"       # медиа по TCP (если UDP закрыт у собеседника)
+      - "7882:7882/udp"   # медиа по UDP
+    mem_limit: 2g
+    logging: *logging
 
-  # ----- TURN / STUN server -----
-  coturn:
-    image: coturn/coturn:4.6
-    container_name: selfcall-coturn
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ./certs:/certs:ro
-    command: -c /etc/coturn/turnserver.conf
-
-  # ----- Python FastAPI backend (tokens + rooms list) -----
   backend:
     build: ../backend
-    container_name: selfcall-backend
     restart: unless-stopped
-    # Bind to host loopback only — nginx (host net) proxies api.if-x.ru to it.
-    ports:
-      - "127.0.0.1:8000:8000"
     environment:
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - LIVEKIT_URL=wss://${LIVEKIT_DOMAIN}
-      - CORS_ORIGINS=https://${APP_DOMAIN},http://localhost:5173,http://localhost:3000
-      - MAX_ACTIVE_MEETINGS=10
-      - MAX_PARTICIPANTS=10
-
-  # ----- Nginx reverse proxy + TLS -----
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: selfcall-nginx
-    restart: unless-stopped
-    # Host networking so nginx can reach LiveKit (host net) and backend (127.0.0.1)
-    # without Docker bridge indirection. Ports 80/443 are bound directly.
-    network_mode: host
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/letsencrypt:ro
-      - ./certbot-webroot:/var/www/certbot:ro
-      - ../frontend/dist:/usr/share/nginx/html:ro
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?}
+      LIVEKIT_URL: wss://${DOMAIN:?DOMAIN не задан в .env}   # адрес для браузера
+      LIVEKIT_API_URL: http://livekit:7880                  # адрес для бэкенда
+      MEETING_SECRET: ${MEETING_SECRET:?}
+      CORS_ORIGINS: https://${DOMAIN}
+      MAX_ACTIVE_MEETINGS: ${MAX_ACTIVE_MEETINGS:-10}
+      MAX_PARTICIPANTS: ${MAX_PARTICIPANTS:-10}
     depends_on:
       - livekit
+    mem_limit: 256m
+    logging: *logging
 
-  # ----- Certbot for Let's Encrypt -----
-  certbot:
-    image: certbot/certbot:latest
-    container_name: selfcall-certbot
-    volumes:
-      - ./certs:/etc/letsencrypt
-      - ./certbot-webroot:/var/www/certbot
-    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
+  web:
+    build: ../frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8110}:80"
+    depends_on:
+      - backend
+      - livekit
+    mem_limit: 128m
+    logging: *logging

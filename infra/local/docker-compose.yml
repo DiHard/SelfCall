@@ -1,26 +1,26 @@
 # Локальный запуск всего сервиса: docker compose -f infra/local/docker-compose.yml up --build
 # Затем открыть http://localhost:8080
+# Устроен так же, как продакшен (infra/docker-compose.yml): сайт, API и сигналинг LiveKit
+# идут через один адрес, наружу открыты только порты медиа.
 name: selfcall-local
 
 services:
   livekit:
-    image: livekit/livekit-server:v1.8
+    image: livekit/livekit-server:v1.13.11
     command: --config /etc/livekit.yaml
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
-      - "7880:7880"       # signaling (WebSocket)
-      - "7881:7881"       # media over TCP
-      - "7882:7882/udp"   # media over UDP
+      - "7881:7881"       # медиа по TCP
+      - "7882:7882/udp"   # медиа по UDP
 
   backend:
     build: ../../backend
     environment:
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: local-dev-secret-0123456789abcdef0123456789
-      LIVEKIT_URL: ws://localhost:7880           # адрес для браузера
+      LIVEKIT_URL: ws://localhost:8080           # адрес для браузера: сигналинг через nginx web
       LIVEKIT_API_URL: http://livekit:7880       # адрес для бэкенда внутри Docker
-      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
     depends_on:
       - livekit
 
@@ -30,3 +30,4 @@ services:
       - "8080:80"
     depends_on:
       - backend
+      - livekit

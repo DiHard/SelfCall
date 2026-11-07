@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Generate random secrets for .env file.
-# Usage: bash gen-secrets.sh   (prints to stdout; copy/paste into .env)
+# Печатает случайные ключи для infra/.env (скопировать строки в файл).
+# Запуск: bash scripts/gen-secrets.sh
 set -euo pipefail
 
-echo "LIVEKIT_API_KEY=APIkey_$(openssl rand -hex 8)"
+echo "LIVEKIT_API_KEY=API$(openssl rand -hex 8)"
 echo "LIVEKIT_API_SECRET=$(openssl rand -hex 32)"
-echo "TURN_SECRET=$(openssl rand -hex 24)"
+echo "MEETING_SECRET=$(openssl rand -hex 32)"

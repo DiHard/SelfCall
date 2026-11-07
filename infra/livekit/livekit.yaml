@@ -1,27 +1,23 @@
-# LiveKit server config
-# Docs: https://docs.livekit.io/home/self-hosting/deployment/
-
+# LiveKit для сервера. Ключи приходят из LIVEKIT_KEYS, внешний IP — из NODE_IP (см. docker-compose.yml).
+# Документация: https://docs.livekit.io/home/self-hosting/deployment/
 port: 7880
 
 rtc:
-  # All WebRTC media goes through a single UDP port (simpler firewall rules)
+  # Всё медиа идёт через один UDP-порт, а если UDP закрыт — через TCP.
+  # Оба порта нужно пробросить на роутере на сервер.
   udp_port: 7882
-  # TCP fallback for restrictive networks
   tcp_port: 7881
-  # Auto-detect public IP of the VPS
-  use_external_ip: true
+  # IP задаём явно через NODE_IP: сервер за роутером, автоопределение тут ненадёжно
+  use_external_ip: false
 
-# API keys: must match .env (LIVEKIT_API_KEY / LIVEKIT_API_SECRET)
-# These are injected via env var LIVEKIT_KEYS at runtime,
-# so no need to hardcode here.
-
-# Rooms are created only by the backend: that is how the meeting limit works
 room:
+  # Комнаты создаёт только бэкенд — так работает лимит на число встреч
   auto_create: false
 
-# Logging
-log_level: info
-
-# Turn-server integration (we run our own coturn on host)
+# Встроенный TURN выключен. TURN/TLS на 443 потребовал бы менять общий nginx сервера,
+# а для строгих сетей пока хватает медиа по TCP 7881.
 turn:
-  enabled: false   # clients will reach coturn directly, LiveKit does not need embedded TURN
+  enabled: false
+
+logging:
+  level: info

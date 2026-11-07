@@ -10,7 +10,7 @@
 backend/    FastAPI (Python 3) — встречи по ссылке, токены LiveKit, лимиты
 frontend/   React + Vite + TypeScript
 android/    Kotlin + Jetpack Compose (старая версия с комнатами, ещё не переведена на новый API)
-infra/      Docker Compose: LiveKit + coturn + Nginx + certbot (продакшен)
+infra/      Docker Compose для сервера: LiveKit + backend + web (за nginx хоста)
 infra/local/  Docker Compose для локального запуска всего сервиса
 ```
 
@@ -83,24 +83,21 @@ SELFCALL_API_BASE=http://10.0.2.2:8000
 
 ### Infra (`infra/`)
 
-Деплой только на VPS (host networking, certbot). Локально НЕ запускается.
+Продакшен — офисный сервер `araratadmin@188.164.152.23` (за роутером, LAN `192.168.10.13`). **На нём же работает продакшен Gamma (Аврора): её nginx-сайты, Postgres, контейнеры и VM не трогать.** SelfCall занимает только `~/selfcall`, Docker-проект `selfcall`, `/etc/nginx/sites-*/selfcall.conf` и порты 127.0.0.1:8110, TCP 7881, UDP 7882.
 
 ```bash
-cd infra
-bash scripts/01-server-init.sh       # Docker + firewall + swap (один раз)
-bash scripts/gen-secrets.sh          # сгенерировать ключи
-cp .env.example .env                 # вставить секреты, домены
-bash scripts/02-issue-certs.sh       # Let's Encrypt (после первого старта nginx)
-docker compose up -d
-docker compose logs -f livekit
+bash infra/scripts/deploy.sh                     # с Mac: rsync кода + sudo docker compose up -d --build
+# один раз на сервере, в ~/selfcall/infra:
+cp .env.example .env && bash scripts/gen-secrets.sh
+sudo bash scripts/install-nginx-site.sh          # сайт в nginx хоста, с nginx -t и откатом
+sudo certbot --nginx -d <домен>
 ```
 
-Пошаговая инструкция с нюансами (отключение TLS-конфигов на время выпуска сертов и т.п.): [infra/README.md](infra/README.md).
+Пошагово, с пробросом портов на роутере: [infra/README.md](infra/README.md).
 
 ## Быстрый smoke-test после деплоя
 
 ```bash
-curl https://api.if-x.ru/health      # {"status":"ok"}
-curl -X POST https://api.if-x.ru/api/meetings   # {"id":"abc-defg-hjk"}
-curl -I https://livekit.if-x.ru      # LiveKit отвечает OK
+curl https://<домен>/api/health              # {"status":"ok"}
+curl -X POST https://<домен>/api/meetings    # {"id":"abc-defg-hjk"}
 ```

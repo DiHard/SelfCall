@@ -26,7 +26,7 @@ SelfCall/
 ├── android/        ← Kotlin + Compose (пока старая версия с комнатами)
 └── infra/
     ├── local/      ← Docker Compose для запуска на своём компьютере
-    └── ...         ← продакшен: LiveKit + coturn + Nginx + certbot
+    └── ...         ← продакшен: LiveKit + backend + web за nginx сервера
 ```
 
 ## Локальный запуск
@@ -38,6 +38,8 @@ docker compose -f infra/local/docker-compose.yml up --build -d
 ```
 
 Откройте http://localhost:8080 и создайте встречу. Второго участника проще всего добавить из окна инкогнито (Cmd+Shift+N в Chrome), вставив ту же ссылку.
+
+Локальная сборка устроена так же, как на сервере: сигналинг LiveKit идёт через тот же адрес по пути `/rtc`.
 
 Без второго человека можно подключить тестового бота с видео:
 
@@ -56,11 +58,11 @@ docker compose -f infra/local/docker-compose.yml down
 ## Архитектура
 
 ```
-                 ┌──────────────── один сервер ────────────────┐
+                 ┌──────────────── один домен ─────────────────┐
   Браузер ─────► │ nginx ── /         → React (статика)         │
-  Android ─────► │       └─ /api/     → FastAPI (встречи, токены)│
-                 │ LiveKit (WebRTC) ◄── медиа UDP/TCP            │
-                 │ coturn (TURN) — для строгих сетей             │
+  Android ─────► │       ├─ /api/     → FastAPI (встречи, токены)│
+                 │       └─ /rtc      → LiveKit (сигналинг)      │
+                 │ LiveKit ◄── видео и звук: UDP 7882 / TCP 7881 │
                  └──────────────────────────────────────────────┘
 ```
 
@@ -69,4 +71,4 @@ docker compose -f infra/local/docker-compose.yml down
 - **Что сделано и что дальше:** [STATUS.md](STATUS.md), [ROADMAP.md](ROADMAP.md)
 - **Бэкенд, API и лимиты:** [backend/README.md](backend/README.md)
 - **Фронт:** [frontend/README.md](frontend/README.md)
-- **Деплой на сервер:** [infra/README.md](infra/README.md) (будет обновлён на этапе 3)
+- **Деплой на сервер:** [infra/README.md](infra/README.md)

@@ -1,135 +1,97 @@
-# SelfCall — Infrastructure
+# SelfCall — деплой на сервер
 
-Self-hosted LiveKit stack (LiveKit SFU + coturn + Nginx + Let's Encrypt).
+Сервис ставится на офисный сервер, где уже работает Gamma (Аврора). Правило одно: **ничего чужого не трогать**. SelfCall добавляет на сервер только:
 
-## Subdomains (NetAngels DNS → VPS IP)
+- папку `~/selfcall` с кодом;
+- Docker-проект `selfcall` из трёх контейнеров: `livekit`, `backend`, `web`;
+- файл `/etc/nginx/sites-available/selfcall.conf` и ссылку на него в `sites-enabled`;
+- сертификат Let's Encrypt для своего домена.
 
-| Subdomain | Purpose |
-|-----------|---------|
-| `app.if-x.ru` | React web app (static) |
-| `api.if-x.ru` | Python FastAPI backend |
-| `livekit.if-x.ru` | LiveKit signaling (WebSocket over TLS) |
+## Как устроено
 
-Create **three A-records** in NetAngels DNS panel, all pointing to the VPS public IP.
+```
+Интернет ──► роутер 188.164.152.23 ──► сервер 192.168.10.13
+   443/80 ──► nginx хоста (общий с Gamma) ── <домен> ──► 127.0.0.1:8110 ─► контейнер web
+                                                          ├─ /       сайт
+                                                          ├─ /api/   → backend
+                                                          └─ /rtc    → livekit (сигналинг)
+   TCP 7881, UDP 7882 ────────────────────────────────────────────────► livekit (видео и звук)
+```
 
-## Open ports (firewall)
+Сайт, API и сигналинг LiveKit работают на одном домене, поэтому нужен один сертификат и одна DNS-запись. Видео и звук идут напрямую в LiveKit через два отдельных порта.
 
-| Port | Proto | Purpose |
-|------|-------|---------|
-| 22   | tcp | SSH |
-| 80   | tcp | HTTP (ACME challenge + redirect) |
-| 443  | tcp | HTTPS + WSS |
-| 7881 | tcp | LiveKit TCP fallback |
-| 7882 | udp | LiveKit UDP mux (all WebRTC media) |
-| 3478 | udp/tcp | STUN/TURN |
-| 5349 | tcp | TURN over TLS |
-| 50000–50200 | udp | coturn relay range |
+## Что нужно один раз
 
-## Deployment — step by step
+1. **Домен**, например `call.gamma.help`, и A-запись на `188.164.152.23`.
+2. **Проброс портов на роутере** на `192.168.10.13`:
 
-### 1. Prepare the VPS
+   | Порт | Протокол | Зачем |
+   |------|----------|-------|
+   | 7882 | UDP | видео и звук (основной путь) |
+   | 7881 | TCP | видео и звук, если у собеседника закрыт UDP |
+   | 80, 443 | TCP | уже проброшены для Gamma |
+
+   Если звонят из той же офисной сети, роутер должен уметь NAT loopback (hairpin): обращение изнутри на внешний адрес `188.164.152.23` должно возвращаться на сервер.
+
+3. **Файл `infra/.env` на сервере.** Сначала скопируйте код (шаг «Деплой» ниже), затем на сервере:
+
+   ```bash
+   cd ~/selfcall/infra
+   cp .env.example .env
+   bash scripts/gen-secrets.sh   # вставить три строки в .env
+   nano .env                     # DOMAIN, проверить NODE_IP
+   ```
+
+4. **Сайт в nginx хоста и сертификат**, на сервере:
+
+   ```bash
+   cd ~/selfcall/infra
+   sudo bash scripts/install-nginx-site.sh   # проверяет nginx -t, при ошибке откатывает свой файл
+   sudo certbot --nginx -d <домен>
+   ```
+
+## Деплой
+
+С Mac, из корня репозитория:
 
 ```bash
-# SSH into the VPS as root
-ssh root@<VPS_IP>
-
-# Clone the repo
-git clone https://github.com/DiHard/SelfCall.git
-cd SelfCall/infra
-
-# First-time server setup (Docker, firewall, swap)
-bash scripts/01-server-init.sh
+bash infra/scripts/deploy.sh
 ```
 
-### 2. Configure secrets
+Скрипт копирует `backend`, `frontend` и `infra` в `~/selfcall` и запускает `sudo docker compose up -d --build`. Сервер спросит пароль `sudo`. Файл `.env` на сервере не перезаписывается.
+
+## Проверка
 
 ```bash
-cp .env.example .env
-
-# Generate random keys and paste them into .env
-bash scripts/gen-secrets.sh
-
-# Edit domains / email / paste the generated secrets
-nano .env
+curl https://<домен>/api/health          # {"status":"ok"}
+curl -X POST https://<домен>/api/meetings  # {"id":"abc-defg-hjk"}
 ```
 
-Also patch `coturn/turnserver.conf`: replace `REPLACE_ME_TURN_SECRET` with the
-generated `TURN_SECRET` value and adjust `realm=` / domain if needed.
+Затем откройте `https://<домен>`, создайте встречу и зайдите по ссылке с телефона через мобильный интернет: так видно, что проброс портов работает.
 
-### 3. Issue TLS certificates (first run)
+## Обслуживание
 
-**Important:** before the first certbot run the Nginx configs that reference
-cert files would fail. Temporarily move them aside:
+На сервере, в `~/selfcall/infra`:
 
 ```bash
-mkdir -p nginx/conf.d.disabled
-mv nginx/conf.d/app.conf nginx/conf.d/api.conf nginx/conf.d/livekit.conf nginx/conf.d.disabled/
+sudo docker compose ps
+sudo docker compose logs -f livekit
+sudo docker compose restart backend
+sudo docker compose down            # остановить SelfCall, Gamma не затрагивается
 ```
 
-Start Nginx (only the ACME server block is active):
+Логи контейнеров ограничены: 3 файла по 10 МБ на контейнер.
+
+## Необязательно: UDP-буферы
+
+LiveKit советует увеличить буферы UDP. Это настройка ядра для всего сервера. Gamma от неё не пострадает, но делать её стоит осознанно:
 
 ```bash
-docker compose up -d nginx
+printf 'net.core.rmem_max=5000000\nnet.core.wmem_max=5000000\n' | sudo tee /etc/sysctl.d/90-selfcall.conf
+sudo sysctl --system
 ```
 
-Issue certs:
+## Чего здесь нет и почему
 
-```bash
-bash scripts/02-issue-certs.sh
-```
-
-Re-enable the TLS configs:
-
-```bash
-mv nginx/conf.d.disabled/*.conf nginx/conf.d/
-```
-
-### 4. Start the full stack
-
-```bash
-docker compose up -d
-docker compose ps
-docker compose logs -f livekit
-```
-
-### 5. Smoke test
-
-```bash
-# LiveKit signaling endpoint should respond with "OK" over HTTPS:
-curl -I https://livekit.if-x.ru
-
-# coturn STUN binding test (from any machine):
-# Use any online STUN tester with stun:livekit.if-x.ru:3478
-```
-
-## Directory layout
-
-```
-infra/
-├── docker-compose.yml          # LiveKit + coturn + Nginx + certbot
-├── .env.example                # Secrets / domain template
-├── livekit/
-│   └── livekit.yaml            # LiveKit server config
-├── coturn/
-│   └── turnserver.conf         # TURN/STUN config
-├── nginx/
-│   ├── nginx.conf              # Top-level
-│   └── conf.d/
-│       ├── 00-acme.conf        # ACME + HTTP->HTTPS redirect
-│       ├── app.conf            # React static (app.if-x.ru)
-│       ├── api.conf            # FastAPI proxy (api.if-x.ru)
-│       └── livekit.conf        # LiveKit WSS proxy (livekit.if-x.ru)
-└── scripts/
-    ├── 01-server-init.sh       # Docker + firewall + swap
-    ├── 02-issue-certs.sh       # Let's Encrypt
-    └── gen-secrets.sh          # Random keys/secrets
-```
-
-## Notes
-
-- LiveKit and coturn use **host networking** — they need direct UDP access,
-  and Docker userland proxy adds latency/packet loss for media traffic.
-- Nginx is bridged and maps only 80/443.
-- `use_external_ip: true` in `livekit.yaml` makes LiveKit auto-detect the
-  VPS public IP so WebRTC ICE candidates are correct.
-- coturn shares the Let's Encrypt cert of `livekit.if-x.ru` for TURN-over-TLS.
+- **TURN/TLS на 443.** Он помог бы в корпоративных сетях, где закрыто всё, кроме 443. Но для этого пришлось бы менять общий nginx (stream с разбором SNI) и затронуть Gamma. Пока хватает TCP 7881.
+- **Свой брандмауэр.** На сервере `ufw` выключен, наружу открыто только то, что проброшено на роутере. Контейнер `web` слушает только `127.0.0.1`.
