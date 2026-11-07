@@ -93,7 +93,7 @@ sudo bash scripts/install-nginx-site.sh          # сайт в nginx хоста,
 sudo certbot --nginx -d <домен>
 ```
 
-Пошагово, с пробросом портов на роутере: [infra/README.md](infra/README.md).
+Пошагово: [infra/README.md](infra/README.md).
 
 ## Быстрый smoke-test после деплоя
 
