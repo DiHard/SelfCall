@@ -26,17 +26,19 @@ import type { JoinResponse } from "../api";
 import {
   CamIcon,
   CamOffIcon,
+  CheckIcon,
   ChevronUpIcon,
+  CopyIcon,
   HangUpIcon,
   LinkIcon,
   MicIcon,
   MicOffIcon,
   ScreenIcon,
   ScreenStopIcon,
+  ShareIcon,
   UsersIcon,
 } from "../icons";
-import { canShareScreen, copyText, meetingUrl, plural } from "../lib";
-import { LinkBox } from "./LinkBox";
+import { canShareScreen, copyText, meetingUrl, plural, shareLink } from "../lib";
 import type { JoinChoices } from "./PreJoin";
 import { useToast } from "./toast-context";
 
@@ -105,18 +107,23 @@ function CallLayout({ meetingId }: { meetingId: string }) {
     <LayoutContextProvider value={layout}>
       <div className="call-shell">
         <CallHeader meetingId={meetingId} />
-        <Stage meetingId={meetingId} />
-        <Controls meetingId={meetingId} />
+        <Stage />
+        <Controls />
       </div>
     </LayoutContextProvider>
   );
 }
 
 function CallHeader({ meetingId }: { meetingId: string }) {
-  const count = useParticipants().length;
+  const participants = useParticipants();
+  const count = participants.length;
+  const alone = count <= 1;
   return (
     <header className="call-header">
-      <span className="call-code">{meetingId}</span>
+      <div className="call-invite">
+        <InviteButton meetingId={meetingId} prominent={alone} />
+        {alone && <span className="call-hint">Пока здесь только вы. Отправьте ссылку собеседнику.</span>}
+      </div>
       <span className="call-count" title="Участники">
         <UsersIcon />
         <span>
@@ -128,8 +135,46 @@ function CallHeader({ meetingId }: { meetingId: string }) {
   );
 }
 
+/**
+ * The meeting code as a button: copies the link (or opens the share sheet on phones).
+ * While nobody else has joined it is filled with the accent color, then it turns quiet.
+ */
+function InviteButton({ meetingId, prominent }: { meetingId: string; prominent: boolean }) {
+  const toast = useToast();
+  const [copied, setCopied] = useState(false);
+  const url = meetingUrl(meetingId);
+  const canShare = typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches;
+
+  const onClick = async () => {
+    if (canShare && (await shareLink(url))) return;
+    if (await copyText(url)) {
+      setCopied(true);
+      toast("Ссылка скопирована");
+      window.setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast("Не получилось скопировать ссылку. Скопируйте её из адресной строки.", "error");
+    }
+  };
+
+  const action = canShare ? "Отправить ссылку на встречу" : "Скопировать ссылку на встречу";
+  return (
+    <button
+      className={`btn btn-sm invite ${prominent ? "btn-primary" : "invite-quiet"}`}
+      onClick={onClick}
+      aria-label={`${action} ${meetingId}`}
+      title={action}
+    >
+      <LinkIcon />
+      <span className="invite-code">{meetingId}</span>
+      <span className="invite-state" aria-hidden="true">
+        {copied ? <CheckIcon /> : canShare ? <ShareIcon /> : <CopyIcon />}
+      </span>
+    </button>
+  );
+}
+
 /** Grid of cameras; when someone shares a screen, the screen goes big and cameras move to a strip. */
-function Stage({ meetingId }: { meetingId: string }) {
+function Stage() {
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -156,7 +201,6 @@ function Stage({ meetingId }: { meetingId: string }) {
   }, [screens.map((s) => `${s.publication.trackSid}_${s.publication.isSubscribed}`).join()]);
 
   const others = tracks.filter((t) => !focus || !isEqualTrackRef(t, focus));
-  const alone = new Set(tracks.map((t) => t.participant.identity)).size <= 1;
 
   return (
     <div className="stage">
@@ -172,13 +216,6 @@ function Stage({ meetingId }: { meetingId: string }) {
           <ParticipantTile />
         </GridLayout>
       )}
-      {alone && !focus && (
-        <div className="alone-card">
-          <p className="alone-title">Пока здесь только вы</p>
-          <p className="muted">Отправьте ссылку, чтобы пригласить собеседника.</p>
-          <LinkBox meetingId={meetingId} />
-        </div>
-      )}
     </div>
   );
 }
@@ -191,7 +228,7 @@ function isEqualTrackRef(a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlac
   );
 }
 
-function Controls({ meetingId }: { meetingId: string }) {
+function Controls() {
   const room = useRoomContext();
   const toast = useToast();
 
@@ -219,14 +256,6 @@ function Controls({ meetingId }: { meetingId: string }) {
       }
     },
   });
-
-  const copyLink = async () => {
-    const ok = await copyText(meetingUrl(meetingId));
-    toast(
-      ok ? "Ссылка скопирована" : "Не получилось скопировать ссылку. Скопируйте её из адресной строки.",
-      ok ? "info" : "error",
-    );
-  };
 
   return (
     <nav className="controls" aria-label="Управление встречей">
@@ -268,12 +297,6 @@ function Controls({ meetingId }: { meetingId: string }) {
             offStyle="neutral"
           />
         )}
-        <button className="ctl" onClick={copyLink} title="Скопировать ссылку на встречу">
-          <span className="ctl-icon">
-            <LinkIcon />
-          </span>
-          <span className="ctl-caption">Ссылка</span>
-        </button>
       </div>
       <button className="ctl ctl-leave" onClick={() => room.disconnect()} title="Выйти из встречи">
         <span className="ctl-icon">

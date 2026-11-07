@@ -81,16 +81,6 @@
   --danger-text: #ff8589;
   --focus: #6996f7;
   color-scheme: dark;
-
-  /* LiveKit component theme */
-  --lk-bg: var(--bg);
-  --lk-bg2: var(--surface);
-  --lk-bg3: var(--surface-2);
-  --lk-fg: var(--text);
-  --lk-accent-bg: var(--accent-solid);
-  --lk-border-radius: var(--radius);
-  --lk-grid-gap: 8px;
-  --lk-control-bar-height: 0px;
 }
 
 /* ============ Base ============ */
@@ -587,8 +577,17 @@ select.input {
 }
 
 /* ============ Call ============ */
-/* Doubled class: LiveKit's own stylesheet loads later and sets the container height */
+/* Doubled class: LiveKit's own stylesheet loads later and sets the container height
+   and its theme tokens on [data-lk-theme], which would otherwise win over ours */
 .call.call {
+  --lk-bg: var(--bg);
+  --lk-bg2: var(--surface);
+  --lk-bg3: var(--surface-2);
+  --lk-fg: var(--text);
+  --lk-accent-bg: var(--accent-solid);
+  --lk-border-radius: var(--radius);
+  --lk-grid-gap: 8px;
+  --lk-control-bar-height: 0px;
   height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -605,14 +604,64 @@ select.input {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px 4px;
+  padding: 10px 16px 2px;
   color: var(--text-2);
   font-size: var(--text-small);
 }
 
-.call-code,
 .call-count {
   font-variant-numeric: tabular-nums;
+}
+
+.call-invite {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.call-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite {
+  flex-shrink: 0;
+  padding-inline: 10px 8px;
+}
+
+.invite svg {
+  width: 16px;
+  height: 16px;
+}
+
+.invite-code {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.invite-state {
+  display: inline-flex;
+  opacity: 0.8;
+}
+
+.invite-quiet {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  .invite-quiet:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+}
+
+@media (max-width: 640px) {
+  .call-hint {
+    display: none;
+  }
 }
 
 .call-count {
@@ -640,8 +689,16 @@ select.input {
 }
 
 .stage .lk-participant-tile {
+  --lk-speaking-indicator-width: 3px;
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+/* Speaker frame: same corners as the tile, drawn above the video */
+.stage .lk-participant-tile::after {
+  z-index: 1;
+  border-radius: inherit;
+  border-color: var(--accent);
 }
 
 /* Camera-off placeholder: a modest silhouette instead of one that fills the tile */
@@ -655,39 +712,6 @@ select.input {
 .stage .lk-focus-layout .lk-participant-media-video[data-lk-source="screen_share"] {
   object-fit: contain;
   background: #000;
-}
-
-/* Outer radius = linkbox radius (15) + padding (16) */
-.alone-card {
-  position: absolute;
-  left: 50%;
-  bottom: 32px;
-  transform: translateX(-50%);
-  width: min(420px, calc(100% - 32px));
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius-sm) + 7px + 16px);
-  background: rgb(26 29 34 / 0.94);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
-}
-
-.alone-title {
-  font-weight: 600;
-  font-size: var(--text-lead);
-  padding-inline: 4px;
-}
-
-.alone-card .muted {
-  margin-top: 4px;
-  font-size: var(--text-small);
-  padding-inline: 4px;
-}
-
-.alone-card .linkbox {
-  margin-top: 14px;
-  background: var(--surface-2);
-  border-color: transparent;
 }
 
 /* ----- Control bar ----- */
@@ -884,6 +908,10 @@ select.input {
 }
 
 @media (max-width: 560px) {
+  .call-header {
+    padding-inline: 8px;
+  }
+
   .stage {
     padding: 4px 8px;
   }
