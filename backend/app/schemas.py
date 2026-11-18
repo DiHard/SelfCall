@@ -23,3 +23,4 @@ class JoinResponse(BaseModel):
     meeting_id: str
     identity: str
     name: str
+    elapsed_ms: int

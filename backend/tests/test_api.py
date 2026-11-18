@@ -21,8 +21,13 @@ class FakeRooms:
     async def list_rooms(self) -> list[RoomState]:
         return list(self.rooms.values())
 
-    async def create_room(self, name: str) -> None:
-        self.rooms[name] = RoomState(name=name, participants=0, created_at=time.time())
+    async def create_room(self, name: str, started_at_ms: int | None = None) -> None:
+        self.rooms[name] = RoomState(
+            name=name, participants=0, created_at=time.time(), started_at_ms=started_at_ms
+        )
+
+    async def set_start_time(self, name: str, started_at_ms: int) -> None:
+        self.rooms[name].started_at_ms = started_at_ms
 
     async def delete_room(self, name: str) -> None:
         self.rooms.pop(name, None)
@@ -88,6 +93,27 @@ def test_closed_meeting_reopens_on_join(client: TestClient, fake: FakeRooms) -> 
     assert client.get(f"/api/meetings/{mid}").json()["active"] is False
     assert client.post(f"/api/meetings/{mid}/join", json={}).status_code == 200
     assert mid in fake.rooms
+
+
+def test_duration_starts_on_first_join_and_resets_when_room_is_reopened(
+    client: TestClient, fake: FakeRooms, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mid = client.post("/api/meetings").json()["id"]
+    now_ms = time.time_ns() // 1_000_000
+    monkeypatch.setattr(time, "time_ns", lambda: now_ms * 1_000_000)
+    fake.rooms[mid].created_at -= 120
+
+    first = client.post(f"/api/meetings/{mid}/join", json={})
+    assert first.json()["elapsed_ms"] == 0
+
+    now_ms += 65_000
+    second = client.post(f"/api/meetings/{mid}/join", json={})
+    assert second.json()["elapsed_ms"] == 65_000
+
+    fake.rooms.clear()
+    reopened = client.post(f"/api/meetings/{mid}/join", json={})
+    assert reopened.json()["elapsed_ms"] == 0
+    assert fake.rooms[mid].started_at_ms == now_ms
 
 
 def test_active_meeting_limit(client: TestClient, fake: FakeRooms) -> None:

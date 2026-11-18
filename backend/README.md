@@ -25,7 +25,9 @@ FastAPI-сервис: создаёт встречи, выдаёт токены L
 | `GET` | `/api/health` | `{"status":"ok"}` |
 | `POST` | `/api/meetings` | Создаёт встречу → `{"id": "abc-defg-hjk"}` |
 | `GET` | `/api/meetings/{id}` | `{"id", "active", "participants", "max_participants"}` |
-| `POST` | `/api/meetings/{id}/join` | Тело `{"name": "Максим"}` (имя необязательно, по умолчанию «Гость») → `{"token", "url", "meeting_id", "identity", "name"}` |
+| `POST` | `/api/meetings/{id}/join` | Тело `{"name": "Максим"}` (имя необязательно, по умолчанию «Гость») → `{"token", "url", "meeting_id", "identity", "name", "elapsed_ms"}` |
+
+`elapsed_ms` — время в миллисекундах от общего начала встречи. Веб-клиент и Android используют его для таймера, поэтому поздно вошедшие участники видят длительность всей встречи.
 
 Ошибки приходят в виде `{"detail": {"code": "...", "message": "..."}}`. Клиенты показывают свой текст по полю `code`:
 

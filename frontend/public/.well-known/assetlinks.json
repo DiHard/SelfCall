@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ru.ifx.selfcall",
+      "sha256_cert_fingerprints": [
+        "3B:C7:1C:80:67:7E:AD:CF:7F:3E:09:4C:5D:FC:C0:C6:B5:B8:B2:E0:48:6B:09:06:28:B8:FB:99:8A:6A:14:98",
+        "8A:22:CA:6B:D0:5E:6B:D1:2B:E3:DD:2B:E6:84:EF:AE:F3:D9:AD:58:41:75:CA:3A:4B:DA:CB:52:8E:D4:A5:29"
+      ]
+    }
+  }
+]

@@ -9,7 +9,7 @@
 ```
 backend/    FastAPI (Python 3) — встречи по ссылке, токены LiveKit, лимиты
 frontend/   React + Vite + TypeScript
-android/    Kotlin + Jetpack Compose (старая версия с комнатами, ещё не переведена на новый API)
+android/    Kotlin + Jetpack Compose + LiveKit: встречи по ссылке, как на сайте
 infra/      Docker Compose для сервера: LiveKit + backend + web (за nginx хоста)
 infra/local/  Docker Compose для локального запуска всего сервиса
 ```
@@ -62,42 +62,21 @@ npm run preview                     # предпросмотр собранно�
 
 ### Android (`android/`)
 
-Открывать папку `android/` в Android Studio (не корень репо). Gradle wrapper JAR не закоммичен — при первом sync AS предложит сгенерировать, согласиться.
-
-CLI-сборка (после успешного sync):
+Открывать папку `android/` в Android Studio (не корень репо). AGP 9.5, Gradle 9.8, compileSdk 37.
 
 ```bash
 cd android
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ./gradlew assembleDebug              # debug-APK → app/build/outputs/apk/debug/
 ./gradlew installDebug               # установить на подключённое устройство
 ./gradlew lint
 ```
 
-Переопределить backend URL (для эмулятора / LAN-устройства) — через `android/gradle.properties`:
-
-```
-SELFCALL_API_BASE=http://10.0.2.2:8000
-```
-
-По умолчанию — `https://api.if-x.ru`. Подробнее: [android/README.md](android/README.md).
+Адрес сервиса (сайт, `/api` и ссылки `/m/...` на одном домене) — по умолчанию `https://call.gamma.help`.
+Для локального Docker: `./gradlew installDebug -PSELFCALL_SERVER=http://10.0.2.2:8080`. Подробнее: [android/README.md](android/README.md).
 
 ### Infra (`infra/`)
 
-Продакшен — офисный сервер `araratadmin@188.164.152.23` (за роутером, LAN `192.168.10.13`). **На нём же работает продакшен Gamma (Аврора): её nginx-сайты, Postgres, контейнеры и VM не трогать.** SelfCall занимает только `~/selfcall`, Docker-проект `selfcall`, `/etc/nginx/sites-*/selfcall.conf` и порты 127.0.0.1:8110, TCP 7881, UDP 7882.
+Продакшен — `https://call.gamma.help` на офисном сервере `araratadmin@188.164.152.23` (LAN `192.168.10.13`). **На нём же работает продакшен Gamma (Аврора): её nginx-сайты, Postgres, контейнеры и VM не трогать.** SelfCall использует `~/selfcall`, Docker-проект `selfcall`, сборщик `selfcall-build`, свой сайт nginx и порты 127.0.0.1:8110, TCP 7881, UDP 7882.
 
-```bash
-bash infra/scripts/deploy.sh                     # с Mac: rsync кода + sudo docker compose up -d --build
-# один раз на сервере, в ~/selfcall/infra:
-cp .env.example .env && bash scripts/gen-secrets.sh
-sudo bash scripts/install-nginx-site.sh          # сайт в nginx хоста, с nginx -t и откатом
-sudo certbot --nginx -d <домен>
-```
-
-Пошагово: [infra/README.md](infra/README.md).
-
-## Быстрый smoke-test после деплоя
-
-```bash
-curl https://<домен>/api/health              # {"status":"ok"}
-curl -X POST https://<домен>/api/meetings    # {"id":"abc-defg-hjk"}
-```
+Команда пользователя «давай делать выкладку» означает выполнить обычную выкладку SelfCall на продакшен до конца. Следуй [порядку выкладки](infra/README.md#выкладка-на-продакшен): проверь текущие изменения, запусти с Mac `bash infra/scripts/deploy.sh` и проверь результат на сервере. Скрипт берёт файлы из рабочей папки, включая незакоммиченные изменения. Сборка сайта и API идёт через отдельный сборщик с лимитом в одно ядро и 2 ГиБ памяти без подкачки. Android-приложение выпускается отдельно.

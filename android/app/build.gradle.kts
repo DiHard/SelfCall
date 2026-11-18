@@ -1,34 +1,65 @@
+import java.io.File
+import java.net.URI
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
+}
+
+// Адрес сервиса: на нём и сайт, и API (/api), и ссылки на встречи (/m/...).
+// Переопределяется в gradle.properties или так: ./gradlew assembleDebug -PSELFCALL_SERVER=http://10.0.2.2:8080
+val server = ((findProperty("SELFCALL_SERVER") as String?) ?: "https://call.gamma.help").trimEnd('/')
+val serverUri = URI(server)
+
+val version = Properties().apply {
+    rootProject.file("version.properties").inputStream().use(::load)
+}
+val signingDirectory = providers.environmentVariable("SELFCALL_SIGNING_DIR").orNull?.let(::File)
+    ?: File(System.getProperty("user.home"), "Library/Application Support/SelfCall/android-signing")
+val signingCredentials = Properties().apply {
+    val file = signingDirectory.resolve("signing.properties")
+    if (file.isFile) file.inputStream().use(::load)
 }
 
 android {
     namespace = "ru.ifx.selfcall"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "ru.ifx.selfcall"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        targetSdk = 36
+        versionCode = (providers.gradleProperty("SELFCALL_VERSION_CODE").orNull
+            ?: version.getProperty("firstVersionCode")).toInt()
+        versionName = providers.gradleProperty("SELFCALL_VERSION_NAME").orNull ?: version.getProperty("versionName")
 
-        // Backend base URL. Override via gradle.properties if needed.
-        val apiBase = (project.findProperty("SELFCALL_API_BASE") as String?)
-            ?: "https://api.if-x.ru"
-        buildConfigField("String", "API_BASE_URL", "\"$apiBase\"")
+        buildConfigField("String", "SERVER", "\"$server\"")
+        // Ссылки https://<домен>/m/... открываются в приложении
+        manifestPlaceholders["linkScheme"] = serverUri.scheme
+        manifestPlaceholders["linkHost"] = serverUri.host
+        // Без HTTPS (локальный сервер на Mac) нужен открытый трафик
+        manifestPlaceholders["cleartext"] = (serverUri.scheme == "http").toString()
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = signingDirectory.resolve("selfcall-release.p12")
+            storeType = "PKCS12"
+            storePassword = signingCredentials.getProperty("storePassword")
+            keyAlias = "selfcall-release"
+            keyPassword = storePassword
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -37,16 +68,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
     }
-
-    sourceSets["main"].java.srcDir("src/main/kotlin")
 
     packaging {
         resources {
@@ -56,22 +81,21 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.process)
 
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.navigation.compose)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
 
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.ktor.client.okhttp)
-    implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.okhttp)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     implementation(libs.livekit.android)
     implementation(libs.livekit.android.compose.components)

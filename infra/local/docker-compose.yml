@@ -21,6 +21,9 @@ services:
       LIVEKIT_API_SECRET: local-dev-secret-0123456789abcdef0123456789
       LIVEKIT_URL: ws://localhost:8080           # адрес для браузера: сигналинг через nginx web
       LIVEKIT_API_URL: http://livekit:7880       # адрес для бэкенда внутри Docker
+      ANDROID_RELEASES_DIR: /var/lib/selfcall-android
+    volumes:
+      - android-releases:/var/lib/selfcall-android
     depends_on:
       - livekit
 
@@ -31,3 +34,6 @@ services:
     depends_on:
       - backend
       - livekit
+
+volumes:
+  android-releases:

@@ -1,15 +1,18 @@
 import asyncio
 import logging
 import secrets
+import sqlite3
 import time
 from contextlib import asynccontextmanager, suppress
 from datetime import timedelta
+from uuid import UUID
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from google.auth.exceptions import GoogleAuthError
 from livekit import api
 
-from . import meeting_id
+from . import android_updates, direct_calls, meeting_id
 from .config import settings
 from .rate_limit import RateLimiter
 from .rooms import LiveKitRoomService, RoomService, RoomState
@@ -53,6 +56,13 @@ async def _cleanup_loop(app: FastAPI) -> None:
 async def lifespan(app: FastAPI):
     if not hasattr(app.state, "rooms"):
         app.state.rooms = LiveKitRoomService(settings)
+    app.state.direct_calls = None
+    if settings.fcm_credentials_file and settings.direct_calls_proxy_secret:
+        try:
+            push = direct_calls.Firebase(settings.fcm_credentials_file)
+            app.state.direct_calls = direct_calls.DirectCalls(settings.direct_calls_database, push)
+        except (OSError, ValueError, sqlite3.Error, GoogleAuthError) as error:
+            log.error("Direct calls could not start (%s)", type(error).__name__)
     task = asyncio.create_task(_cleanup_loop(app))
     try:
         yield
@@ -61,6 +71,8 @@ async def lifespan(app: FastAPI):
         with suppress(asyncio.CancelledError):
             await task
         await app.state.rooms.aclose()
+        if app.state.direct_calls:
+            app.state.direct_calls.push.close()
 
 
 app = FastAPI(title="SelfCall API", version="0.2.0", lifespan=lifespan)
@@ -108,6 +120,7 @@ def health() -> dict[str, str]:
 
 @router.post("/meetings", response_model=MeetingCreated, status_code=201)
 async def create_meeting(request: Request) -> MeetingCreated:
+    android_updates.require_supported(request)
     if not request.app.state.create_limiter.allow(_client_ip(request)):
         raise _error(429, "too_many_requests", "Слишком много встреч создано, попробуйте позже")
 
@@ -123,6 +136,7 @@ async def create_meeting(request: Request) -> MeetingCreated:
 
 @router.get("/meetings/{raw_id}", response_model=MeetingInfo)
 async def get_meeting(raw_id: str, request: Request) -> MeetingInfo:
+    android_updates.require_supported(request)
     mid = _checked_id(raw_id)
     room = _find(await _rooms(request).list_rooms(), mid)
     return MeetingInfo(
@@ -135,6 +149,7 @@ async def get_meeting(raw_id: str, request: Request) -> MeetingInfo:
 
 @router.post("/meetings/{raw_id}/join", response_model=JoinResponse)
 async def join_meeting(raw_id: str, payload: JoinRequest, request: Request) -> JoinResponse:
+    android_updates.require_supported(request)
     if not request.app.state.join_limiter.allow(_client_ip(request)):
         raise _error(429, "too_many_requests", "Слишком много попыток, подождите минуту")
     mid = _checked_id(raw_id)
@@ -143,16 +158,27 @@ async def join_meeting(raw_id: str, payload: JoinRequest, request: Request) -> J
     async with request.app.state.lock:
         active = await rooms.list_rooms()
         room = _find(active, mid)
+        now_ms = time.time_ns() // 1_000_000
         if room is None:
             # The link outlived its meeting: open it again if there is room on the server.
             if len(active) >= settings.max_active_meetings:
                 raise _error(503, "server_busy", "Сейчас идёт слишком много встреч")
-            await rooms.create_room(mid)
+            started_at_ms = now_ms
+            await rooms.create_room(mid, started_at_ms=started_at_ms)
         elif room.participants >= settings.max_participants:
             raise _error(409, "meeting_full", "Во встрече нет свободных мест")
+        elif room.started_at_ms is None:
+            # Existing calls already in progress use the room creation time.
+            started_at_ms = int(room.created_at * 1000) if room.participants and room.created_at else now_ms
+            await rooms.set_start_time(mid, started_at_ms)
+        else:
+            started_at_ms = room.started_at_ms
 
     name = (payload.name or "").strip() or DEFAULT_NAME
-    identity = f"guest-{secrets.token_hex(4)}"
+    return join_response(mid, name, f"guest-{secrets.token_hex(4)}", started_at_ms)
+
+
+def join_response(mid: str, name: str, identity: str, started_at_ms: int) -> JoinResponse:
     token = (
         api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
         .with_identity(identity)
@@ -169,7 +195,41 @@ async def join_meeting(raw_id: str, payload: JoinRequest, request: Request) -> J
         )
         .to_jwt()
     )
-    return JoinResponse(token=token, url=settings.livekit_url, meeting_id=mid, identity=identity, name=name)
+    return JoinResponse(
+        token=token,
+        url=settings.livekit_url,
+        meeting_id=mid,
+        identity=identity,
+        name=name,
+        elapsed_ms=max(0, time.time_ns() // 1_000_000 - started_at_ms),
+    )
 
 
+@direct_calls.router.post("/{call_id}/connect", response_model=JoinResponse)
+async def connect_direct_call(call_id: UUID, request: Request) -> JoinResponse:
+    calls, login = direct_calls.access(request)
+    android_updates.require_supported(request)
+    async with calls.lock, request.app.state.lock:
+        call = calls.find(call_id, login)
+        if call.status != "accepted" or call.deadline <= time.time():
+            raise _error(409, "call_finished", "Звонок уже завершён")
+        active = await _rooms(request).list_rooms()
+        room = _find(active, call.room)
+        if room is None:
+            if call.room_created:
+                raise _error(409, "call_finished", "Звонок уже завершён")
+            if len(active) >= settings.max_active_meetings:
+                raise _error(503, "server_busy", "Сейчас идёт слишком много встреч")
+            started_at_ms = time.time_ns() // 1_000_000
+            await _rooms(request).create_room(call.room, started_at_ms=started_at_ms)
+            call.room_created = True
+        else:
+            started_at_ms = room.started_at_ms or int(room.created_at * 1000)
+        incoming = call.callee.login == login
+        contact = call.callee if incoming else call.caller
+        return join_response(call.room, contact.name, "callee" if incoming else "caller", started_at_ms)
+
+
+app.include_router(direct_calls.router)
+app.include_router(android_updates.router)
 app.include_router(router)

@@ -13,11 +13,13 @@ class RoomState:
     name: str
     participants: int
     created_at: float  # unix seconds
+    started_at_ms: int | None = None
 
 
 class RoomService(Protocol):
     async def list_rooms(self) -> list[RoomState]: ...
-    async def create_room(self, name: str) -> None: ...
+    async def create_room(self, name: str, started_at_ms: int | None = None) -> None: ...
+    async def set_start_time(self, name: str, started_at_ms: int) -> None: ...
     async def delete_room(self, name: str) -> None: ...
     async def aclose(self) -> None: ...
 
@@ -44,11 +46,12 @@ class LiveKitRoomService:
                 name=r.name,
                 participants=r.num_participants,
                 created_at=float(r.creation_time),
+                started_at_ms=int(r.metadata) if r.metadata.isascii() and r.metadata.isdecimal() else None,
             )
             for r in res.rooms
         ]
 
-    async def create_room(self, name: str) -> None:
+    async def create_room(self, name: str, started_at_ms: int | None = None) -> None:
         s = self._settings
         await self._client().room.create_room(
             api.CreateRoomRequest(
@@ -56,7 +59,13 @@ class LiveKitRoomService:
                 empty_timeout=s.empty_timeout_seconds,
                 departure_timeout=s.departure_timeout_seconds,
                 max_participants=s.max_participants,
+                metadata=str(started_at_ms) if started_at_ms is not None else "",
             )
+        )
+
+    async def set_start_time(self, name: str, started_at_ms: int) -> None:
+        await self._client().room.update_room_metadata(
+            api.UpdateRoomMetadataRequest(room=name, metadata=str(started_at_ms))
         )
 
     async def delete_room(self, name: str) -> None:

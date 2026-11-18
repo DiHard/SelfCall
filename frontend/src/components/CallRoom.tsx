@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   CarouselLayout,
-  ConnectionStateToast,
-  FocusLayout,
   FocusLayoutContainer,
   GridLayout,
   LayoutContextProvider,
   LiveKitRoom,
   ParticipantTile,
   RoomAudioRenderer,
+  StartAudio,
+  useConnectionState,
   useCreateLayoutContext,
+  useEnsureTrackRef,
   useMediaDeviceSelect,
   usePinnedTracks,
+  useParticipantInfo,
   useParticipants,
   useRoomContext,
   isTrackReference,
@@ -21,7 +23,7 @@ import {
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { DisconnectReason, RoomEvent, ScreenSharePresets, Track, type RoomOptions } from "livekit-client";
+import { ConnectionState, DisconnectReason, RoomEvent, ScreenSharePresets, Track, type RoomOptions } from "livekit-client";
 import type { JoinResponse } from "../api";
 import {
   CamIcon,
@@ -38,8 +40,11 @@ import {
   ShareIcon,
   UsersIcon,
 } from "../icons";
-import { canShareScreen, copyText, meetingUrl, plural, shareLink } from "../lib";
+import { canShareScreen, meetingUrl, plural, shareLink } from "../lib";
+import { Logo } from "./Logo";
 import type { JoinChoices } from "./PreJoin";
+import { useCopyFeedback } from "./useCopyFeedback";
+import { useFocusHeading } from "./useFocusHeading";
 import { useToast } from "./toast-context";
 
 export type LeaveReason = "left" | "ended" | "lost";
@@ -47,6 +52,8 @@ export type LeaveReason = "left" | "ended" | "lost";
 const ROOM_OPTIONS: RoomOptions = {
   adaptiveStream: true,
   dynacast: true,
+  // The SDK also disconnects on beforeunload, even if the user stays.
+  disconnectOnPageLeave: false,
   publishDefaults: {
     // Sharp text on shared screens matters more than smooth motion
     screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
@@ -56,11 +63,15 @@ const ROOM_OPTIONS: RoomOptions = {
 type Props = {
   conn: JoinResponse;
   choices: JoinChoices;
+  colleague?: string;
   onLeave: (reason: LeaveReason) => void;
 };
 
-export function CallRoom({ conn, choices, onLeave }: Props) {
+export function CallRoom({ conn, choices, colleague, onLeave }: Props) {
   const toast = useToast();
+  const [startedAt] = useState(() =>
+    conn.elapsed_ms == null ? null : performance.now() - conn.elapsed_ms,
+  );
   // Created once: new objects on every render would make LiveKit re-acquire devices
   const [audio] = useState(() => (choices.micOn ? { deviceId: choices.micId } : false));
   const [video] = useState(() =>
@@ -90,84 +101,143 @@ export function CallRoom({ conn, choices, onLeave }: Props) {
           "error",
         )
       }
-      onError={() => toast("Не получилось подключиться к встрече. Проверьте интернет и войдите снова.", "error")}
+      onError={() => {
+        if (colleague !== undefined) onLeave("lost");
+        else toast("Не получилось подключиться к встрече. Проверьте интернет и войдите снова.", "error");
+      }}
       data-lk-theme="default"
       className="call"
     >
-      <CallLayout meetingId={conn.meeting_id} />
+      <CallLayout meetingId={conn.meeting_id} colleague={colleague} startedAt={startedAt} />
       <RoomAudioRenderer />
-      <ConnectionStateToast />
     </LiveKitRoom>
   );
 }
 
-function CallLayout({ meetingId }: { meetingId: string }) {
+function CallLayout({ meetingId, colleague, startedAt }: {
+  meetingId: string;
+  colleague?: string;
+  startedAt: number | null;
+}) {
   const layout = useCreateLayoutContext();
+  const room = useRoomContext();
+  const connection = useConnectionState(room);
+  const inMeeting =
+    connection === ConnectionState.Connected ||
+    connection === ConnectionState.Reconnecting ||
+    connection === ConnectionState.SignalReconnecting;
+
+  useEffect(() => {
+    if (!inMeeting) return;
+
+    const confirmPageLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = true;
+    };
+    const disconnectOnPageHide = () => void room.disconnect();
+
+    window.addEventListener("beforeunload", confirmPageLeave);
+    window.addEventListener("pagehide", disconnectOnPageHide);
+    return () => {
+      window.removeEventListener("beforeunload", confirmPageLeave);
+      window.removeEventListener("pagehide", disconnectOnPageHide);
+    };
+  }, [inMeeting, room]);
+
   return (
     <LayoutContextProvider value={layout}>
-      <div className="call-shell">
-        <CallHeader meetingId={meetingId} />
+      <main className="call-shell">
+        <CallHeader meetingId={meetingId} colleague={colleague} startedAt={inMeeting ? startedAt : null} connection={connection} />
         <Stage />
-        <Controls />
-      </div>
+        <Controls direct={colleague !== undefined} />
+      </main>
     </LayoutContextProvider>
   );
 }
 
-function CallHeader({ meetingId }: { meetingId: string }) {
-  const participants = useParticipants();
-  const count = participants.length;
-  const alone = count <= 1;
+function CallHeader({ meetingId, colleague, startedAt, connection }: {
+  meetingId: string;
+  colleague?: string;
+  startedAt: number | null;
+  connection: ConnectionState;
+}) {
+  const count = useParticipants().length;
+  const heading = useFocusHeading<HTMLHeadingElement>();
+  const connected = connection === ConnectionState.Connected;
+  const reconnecting = connection === ConnectionState.Reconnecting || connection === ConnectionState.SignalReconnecting;
   return (
     <header className="call-header">
-      <div className="call-invite">
-        <InviteButton meetingId={meetingId} prominent={alone} />
-        {alone && <span className="call-hint">Пока здесь только вы. Отправьте ссылку собеседнику.</span>}
+      <div className="call-context">
+        <span className="call-brand"><Logo /></span>
+        <h1 ref={heading} tabIndex={-1} className="call-title">
+          {colleague === undefined ? <>Встреча <span>{meetingId}</span></> : colleague}
+        </h1>
       </div>
-      <span className="call-count" title="Участники">
-        <UsersIcon />
-        <span>
-          {count}
-          <span className="visually-hidden"> {plural(count, ["участник", "участника", "участников"])}</span>
+      <div className="call-stats">
+        <span className="call-connection" data-connected={connected} role="status">
+          {connected ? "На связи" : reconnecting ? "Восстанавливаем связь…" : "Подключаемся…"}
         </span>
-      </span>
+        {startedAt !== null && <CallDuration startedAt={startedAt} />}
+        <span className="call-count" title="Участники">
+          <UsersIcon />
+          <span>
+            {count}
+            <span className="visually-hidden"> {plural(count, ["участник", "участника", "участников"])}</span>
+          </span>
+        </span>
+      </div>
+      {colleague === undefined
+        ? <InviteButton meetingId={meetingId} prominent={count <= 1} />
+        : <StartAudio className="btn btn-secondary btn-sm invite" label="Включить звук" />}
     </header>
   );
 }
 
+function CallDuration({ startedAt }: { startedAt: number }) {
+  const [seconds, setSeconds] = useState(() => Math.floor((performance.now() - startedAt) / 1000));
+  useEffect(() => {
+    const interval = window.setInterval(() => setSeconds(Math.floor((performance.now() - startedAt) / 1000)), 250);
+    return () => window.clearInterval(interval);
+  }, [startedAt]);
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds / 60) % 60;
+  const duration = [minutes, seconds % 60].map((part) => String(part).padStart(2, "0")).join(":");
+
+  return (
+    <span className="call-duration" role="timer" aria-label="Длительность встречи" title="Длительность встречи">
+      {hours > 0 ? `${hours}:${duration}` : duration}
+    </span>
+  );
+}
+
 /**
- * The meeting code as a button: copies the link (or opens the share sheet on phones).
+ * Copies the link or opens the share sheet on phones.
  * While nobody else has joined it is filled with the accent color, then it turns quiet.
  */
 function InviteButton({ meetingId, prominent }: { meetingId: string; prominent: boolean }) {
-  const toast = useToast();
-  const [copied, setCopied] = useState(false);
   const url = meetingUrl(meetingId);
+  const { copied, copy } = useCopyFeedback(url, "Не получилось скопировать ссылку. Скопируйте её из адресной строки.");
   const canShare = typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches;
 
   const onClick = async () => {
     if (canShare && (await shareLink(url))) return;
-    if (await copyText(url)) {
-      setCopied(true);
-      toast("Ссылка скопирована");
-      window.setTimeout(() => setCopied(false), 2000);
-    } else {
-      toast("Не получилось скопировать ссылку. Скопируйте её из адресной строки.", "error");
-    }
+    await copy();
   };
 
   const action = canShare ? "Отправить ссылку на встречу" : "Скопировать ссылку на встречу";
   return (
     <button
-      className={`btn btn-sm invite ${prominent ? "btn-primary" : "invite-quiet"}`}
+      className={`btn btn-sm invite ${prominent ? "btn-primary" : "btn-secondary"}`}
       onClick={onClick}
-      aria-label={`${action} ${meetingId}`}
+      aria-label={`Пригласить: ${action.toLowerCase()}`}
       title={action}
+      data-copied={copied}
     >
       <LinkIcon />
-      <span className="invite-code">{meetingId}</span>
+      <span className="invite-label">Пригласить</span>
       <span className="invite-state" aria-hidden="true">
-        {copied ? <CheckIcon /> : canShare ? <ShareIcon /> : <CopyIcon />}
+        {copied ? <CheckIcon className="copy-check" /> : canShare ? <ShareIcon /> : <CopyIcon />}
       </span>
     </button>
   );
@@ -207,17 +277,33 @@ function Stage() {
       {focus ? (
         <FocusLayoutContainer className="stage-focus">
           <CarouselLayout tracks={others}>
-            <ParticipantTile />
+            <MeetingTile />
           </CarouselLayout>
-          <FocusLayout trackRef={focus} />
+          <MeetingTile trackRef={focus} />
         </FocusLayoutContainer>
       ) : (
         <GridLayout tracks={tracks} className="stage-grid">
-          <ParticipantTile />
+          <MeetingTile />
         </GridLayout>
       )}
     </div>
   );
+}
+
+function MeetingTile({ trackRef }: { trackRef?: TrackReferenceOrPlaceholder }) {
+  const track = useEnsureTrackRef(trackRef);
+  const { name } = useParticipantInfo({ participant: track.participant });
+  const pinned = usePinnedTracks(useLayoutContext())?.[0];
+  const focused = !!pinned && isEqualTrackRef(track, pinned);
+  const title = `${focused ? "Вернуться к сетке" : "Показать крупнее"}: ${name || "Гость"}`;
+  const initials = (name?.trim() || "Гость").split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join("").toUpperCase();
+  const labelControl = useCallback((tile: HTMLDivElement | null) => {
+    // LiveKit renders this control inside ParticipantTile and exposes no label prop.
+    const toggle = tile?.querySelector(".lk-focus-toggle-button");
+    toggle?.setAttribute("aria-label", title);
+    toggle?.setAttribute("title", title);
+  }, [title]);
+  return <ParticipantTile trackRef={track} data-initials={initials} ref={labelControl} />;
 }
 
 function isEqualTrackRef(a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlaceholder): boolean {
@@ -228,7 +314,7 @@ function isEqualTrackRef(a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlac
   );
 }
 
-function Controls() {
+function Controls({ direct }: { direct: boolean }) {
   const room = useRoomContext();
   const toast = useToast();
 
@@ -258,7 +344,7 @@ function Controls() {
   });
 
   return (
-    <nav className="controls" aria-label="Управление встречей">
+    <div className="controls" role="group" aria-label={direct ? "Управление звонком" : "Управление встречей"}>
       <div className="controls-group">
         <ControlWithDevices kind="audioinput" label="Микрофон">
           <ControlButton
@@ -298,20 +384,20 @@ function Controls() {
           />
         )}
       </div>
-      <button className="ctl ctl-leave" onClick={() => room.disconnect()} title="Выйти из встречи">
+      <button className="ctl ctl-leave" onClick={() => room.disconnect()} title={direct ? "Завершить звонок" : "Выйти из встречи"}>
         <span className="ctl-icon">
           <HangUpIcon />
         </span>
-        <span className="ctl-caption">Выйти</span>
+        <span className="ctl-caption">{direct ? "Завершить" : "Выйти"}</span>
       </button>
-    </nav>
+    </div>
   );
 }
 
 /**
  * A toggle: the visible caption is its name, aria-pressed is its state,
  * the tooltip says what a click will do.
- * offStyle "danger" (mic, camera) paints the off state red; "neutral" (screen) paints the on state blue.
+ * Microphone and camera highlight the muted state. Screen sharing highlights the active state.
  */
 function ControlButton(props: {
   on: boolean;
@@ -322,10 +408,10 @@ function ControlButton(props: {
   titleOn: string;
   titleOff: string;
   caption: string;
-  offStyle?: "danger" | "neutral";
+  offStyle?: "neutral";
 }) {
-  const danger = (props.offStyle ?? "danger") === "danger";
-  const state = props.on ? (danger ? "" : "ctl-active") : danger ? "ctl-off" : "";
+  const media = props.offStyle !== "neutral";
+  const state = props.on ? (media ? "" : "ctl-active") : media ? "ctl-off" : "";
   return (
     <button
       className={`ctl ${state}`}
@@ -334,7 +420,7 @@ function ControlButton(props: {
       aria-pressed={props.on}
       title={props.on ? props.titleOn : props.titleOff}
     >
-      <span className="ctl-icon">{props.on ? props.iconOn : props.iconOff}</span>
+      <span className="ctl-icon"><span key={String(props.on)} className="ctl-glyph">{props.on ? props.iconOn : props.iconOff}</span></span>
       <span className="ctl-caption">{props.caption}</span>
     </button>
   );
@@ -353,6 +439,7 @@ function ControlWithDevices({
   const room = useRoomContext();
   const { devices, activeDeviceId, setActiveMediaDevice } = useMediaDeviceSelect({ kind, room });
   const [open, setOpen] = useState(false);
+  const menuId = useId();
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -373,9 +460,11 @@ function ControlWithDevices({
       }
     };
     document.addEventListener("pointerdown", close);
+    document.addEventListener("focusin", close);
     document.addEventListener("keydown", close);
     return () => {
       document.removeEventListener("pointerdown", close);
+      document.removeEventListener("focusin", close);
       document.removeEventListener("keydown", close);
     };
   }, [open]);
@@ -392,13 +481,14 @@ function ControlWithDevices({
         className="ctl-more"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         aria-label={chooseLabel}
         title={chooseLabel}
       >
         <ChevronUpIcon />
       </button>
       {open && (
-        <div className="device-menu" ref={menu} role="group" aria-label={chooseLabel}>
+        <div id={menuId} className="device-menu" ref={menu} role="group" aria-label={chooseLabel}>
           {list.map((d, i) => (
             <button
               key={d.deviceId}
@@ -410,6 +500,7 @@ function ControlWithDevices({
                 trigger.current?.focus();
               }}
             >
+              {d.deviceId === activeDeviceId && <CheckIcon />}
               {d.label || `${label} ${i + 1}`}
             </button>
           ))}

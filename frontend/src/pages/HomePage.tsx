@@ -1,9 +1,10 @@
 import { useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError, createMeeting } from "../api";
-import { ArrowRightIcon, PlusIcon } from "../icons";
+import { ArrowRightIcon, CamIcon, LinkIcon, PlusIcon, UsersIcon } from "../icons";
 import { parseMeetingId } from "../lib";
 import { Logo } from "../components/Logo";
+import { useFocusHeading } from "../components/useFocusHeading";
 
 const CREATE_ERRORS: Record<string, string> = {
   server_busy: "Сейчас на сервере идёт максимум встреч. Попробуйте через несколько минут.",
@@ -18,6 +19,7 @@ export function HomePage() {
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const codeInput = useRef<HTMLInputElement>(null);
+  const heading = useFocusHeading<HTMLHeadingElement>();
 
   const create = async () => {
     setCreating(true);
@@ -48,58 +50,60 @@ export function HomePage() {
   };
 
   return (
-    <main className="page page-center">
+    <main className="page">
+      <header className="topbar"><Logo /></header>
       <div className="home">
-        <Logo />
-        <h1 className="home-title">Видеовстречи по&nbsp;ссылке</h1>
-        <p className="home-lead">
-          Создайте встречу и&nbsp;отправьте ссылку. Собеседнику не&nbsp;нужно
-          регистрироваться или что-то устанавливать.
-        </p>
-
-        <button className="btn btn-primary btn-lg home-create" onClick={create} disabled={creating}>
-          <PlusIcon />
-          {creating ? "Создаём встречу…" : "Создать встречу"}
-        </button>
-        {createError && (
-          <p className="field-error" role="alert">
-            {createError}
+        <div className="home-intro screen-enter">
+          <h1 className="home-title" ref={heading} tabIndex={-1}>Видеовстречи по&nbsp;ссылке</h1>
+          <p className="home-lead">
+            Создайте встречу и&nbsp;отправьте ссылку. Собеседник сможет войти прямо из браузера.
           </p>
-        )}
-
-        <div className="divider">
-          <label htmlFor="code">или войдите по ссылке или коду</label>
+          <div className="home-art" aria-hidden="true">
+            <span className="home-art-frame"><CamIcon /></span>
+            <span className="home-art-frame"><UsersIcon /></span>
+            <span className="home-art-link"><LinkIcon /></span>
+          </div>
         </div>
 
-        <form className="join-form" onSubmit={joinByCode} noValidate>
-          <input
-            id="code"
-            ref={codeInput}
-            className="input"
-            type="text"
-            inputMode="url"
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder="abc-defg-hjk"
-            value={code}
-            onChange={(e) => {
-              setCode(e.target.value);
-              setCodeError(null);
-            }}
-            aria-invalid={!!codeError}
-            aria-describedby={codeError ? "code-error" : undefined}
-          />
-          <button className="btn btn-secondary" type="submit">
-            Войти
-            <ArrowRightIcon />
+        <div className="panel home-actions screen-enter">
+          <button className="btn btn-primary btn-lg home-create" onClick={create} disabled={creating} aria-busy={creating}>
+            {creating ? <span className="busy-mark" aria-hidden="true" /> : <PlusIcon />}
+            {creating ? "Создаём встречу…" : "Создать встречу"}
           </button>
-        </form>
-        {codeError && (
-          <p id="code-error" className="field-error" role="alert">
-            {codeError}
-          </p>
-        )}
+          {createError && <p className="field-error" role="alert">{createError}</p>}
+
+          <form className="join-form" onSubmit={joinByCode} noValidate>
+            <label className="field-label" htmlFor="code">Ссылка или код встречи</label>
+            <div className="join-fields">
+              <input
+                id="code"
+                ref={codeInput}
+                className="input"
+                type="text"
+                name="meeting-code"
+                inputMode="url"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="abc-defg-hjk"
+                value={code}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  setCodeError(null);
+                }}
+                aria-invalid={!!codeError}
+                aria-describedby={codeError ? "code-error" : undefined}
+              />
+              <button className="btn btn-secondary" type="submit">
+                Войти <ArrowRightIcon />
+              </button>
+            </div>
+            {codeError && <p id="code-error" className="field-error" role="alert">{codeError}</p>}
+          </form>
+          <Link className="btn btn-secondary home-calls" to="/calls">
+            <UsersIcon /> Звонки коллегам
+          </Link>
+        </div>
       </div>
     </main>
   );

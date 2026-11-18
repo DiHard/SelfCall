@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T11:46:17Z",
+  "title": "Дизайн-система SelfCall",
+  "extensions": {
+    "motion": [
+      {
+        "name": "press",
+        "value": "120ms",
+        "purpose": "Отклик на нажатие"
+      },
+      {
+        "name": "state",
+        "value": "160ms",
+        "purpose": "Смена состояния и значка"
+      },
+      {
+        "name": "panel",
+        "value": "240ms",
+        "purpose": "Появление экрана или меню"
+      },
+      {
+        "name": "invite",
+        "value": "340ms",
+        "purpose": "Выделение новой ссылки"
+      },
+      {
+        "name": "ease-enter",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Замедление в конце перехода"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "home-single-column",
+        "value": "740px"
+      },
+      {
+        "name": "prejoin-single-column",
+        "value": "760px"
+      },
+      {
+        "name": "compact-call",
+        "value": "580px"
+      }
+    ],
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "0 12px 28px rgb(13 21 48 / 0.14)",
+        "purpose": "Меню устройств и уведомления над экраном"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Основное действие",
+      "kind": "button",
+      "refersTo": "primary-button",
+      "description": "Создание встречи или вход",
+      "html": "<button type='button' class='sample-action'>Создать встречу</button>",
+      "css": ".sample-action { font: 600 1rem/1.25 system-ui; min-height: 52px; padding: 8px 24px; border: 0; border-radius: var(--radius, 14px); background: var(--accent-solid, #3045d8); color: var(--on-accent, #fff); transition: background-color 160ms ease; } .sample-action:hover { background: var(--accent-solid-hover, #2436b8); } .sample-action:focus-visible { outline: 2px solid var(--focus, #3045d8); outline-offset: 2px; } @media (prefers-reduced-motion: no-preference) { .sample-action:active { scale: 0.96; } }"
+    }
+  ],
+  "narrative": {
+    "overview": "Светлые формы, тёмная сцена звонка, синий акцент для основного действия. Состояния устройств, связи и действий читаются по подписям и значкам."
+  }
+}

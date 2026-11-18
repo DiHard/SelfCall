@@ -1,45 +1,35 @@
-import { useState } from "react";
-import { CheckIcon, CopyIcon, ShareIcon } from "../icons";
-import { copyText, meetingUrl, shareLink } from "../lib";
-import { useToast } from "./toast-context";
+import { CheckIcon, CopyIcon, LinkIcon, ShareIcon } from "../icons";
+import { meetingUrl, shareLink } from "../lib";
+import { useCopyFeedback } from "./useCopyFeedback";
 
 /** The meeting link with a copy button (and the share sheet on phones). */
-export function LinkBox({ meetingId }: { meetingId: string }) {
+export function LinkBox({ meetingId, justCreated }: { meetingId: string; justCreated: boolean }) {
   const url = meetingUrl(meetingId);
-  const toast = useToast();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback(url, "Не получилось скопировать. Выделите ссылку и скопируйте вручную.");
   const canShare = typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches;
 
-  const copy = async () => {
-    if (await copyText(url)) {
-      setCopied(true);
-      toast("Ссылка скопирована");
-      window.setTimeout(() => setCopied(false), 2000);
-    } else {
-      toast("Не получилось скопировать. Выделите ссылку и скопируйте вручную.", "error");
-    }
-  };
-
   return (
-    <div className="linkbox">
-      <input
-        className="linkbox-url"
-        readOnly
-        value={url.replace(/^https?:\/\//, "")}
-        aria-label="Ссылка на встречу"
-        onFocus={(e) => e.currentTarget.select()}
-      />
-      {canShare ? (
-        <button className="btn btn-secondary btn-sm" onClick={() => shareLink(url)}>
-          <ShareIcon />
-          Отправить
-        </button>
-      ) : (
-        <button className="btn btn-secondary btn-sm" onClick={copy}>
-          {copied ? <CheckIcon /> : <CopyIcon />}
-          {copied ? "Скопировано" : "Скопировать"}
-        </button>
-      )}
+    <div className={`linkbox${justCreated ? " linkbox-ready" : ""}`} data-copied={copied}>
+      <LinkIcon className="linkbox-mark" />
+      <div className="linkbox-info">
+        <label htmlFor="meeting-link">{copied ? "Ссылка скопирована" : "Ссылка на встречу"}</label>
+        <input
+          id="meeting-link"
+          className="linkbox-url"
+          readOnly
+          value={url}
+          onFocus={(e) => e.currentTarget.select()}
+        />
+      </div>
+      <button
+        className="btn btn-icon linkbox-action"
+        type="button"
+        onClick={async () => { if (!canShare || !(await shareLink(url))) await copy(); }}
+        aria-label={canShare ? "Отправить ссылку" : "Скопировать ссылку"}
+        title={canShare ? "Отправить ссылку" : "Скопировать ссылку"}
+      >
+        {copied ? <CheckIcon className="copy-check" /> : canShare ? <ShareIcon /> : <CopyIcon />}
+      </button>
     </div>
   );
 }

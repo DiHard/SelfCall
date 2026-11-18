@@ -8,6 +8,10 @@
 .externalNativeBuild/
 .cxx/
 local.properties
+google-services.json
 *.apk
 *.keystore
+*.p12
+/releases/
 app/build/
+.kotlin/

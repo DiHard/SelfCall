@@ -42,6 +42,13 @@ services:
       CORS_ORIGINS: https://${DOMAIN}
       MAX_ACTIVE_MEETINGS: ${MAX_ACTIVE_MEETINGS:-10}
       MAX_PARTICIPANTS: ${MAX_PARTICIPANTS:-10}
+      FCM_CREDENTIALS_FILE: ${FCM_CREDENTIALS_FILE:-}
+      DIRECT_CALLS_PROXY_SECRET: ${DIRECT_CALLS_PROXY_SECRET:-}
+      ANDROID_RELEASES_DIR: /var/lib/selfcall-android
+    volumes:
+      - direct-call-data:/var/lib/selfcall
+      - android-releases:/var/lib/selfcall-android
+      - /etc/selfcall:/run/selfcall:ro
     depends_on:
       - livekit
     mem_limit: 256m
@@ -57,3 +64,7 @@ services:
       - livekit
     mem_limit: 128m
     logging: *logging
+
+volumes:
+  direct-call-data:
+  android-releases:

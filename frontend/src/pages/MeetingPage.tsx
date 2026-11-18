@@ -4,8 +4,10 @@ import { ApiError, getMeeting, joinMeeting, type JoinResponse, type MeetingInfo 
 import { CallRoom, type LeaveReason } from "../components/CallRoom";
 import { Logo } from "../components/Logo";
 import { PreJoin, type JoinChoices } from "../components/PreJoin";
+import { ToastProvider } from "../components/Toast";
 import { parseMeetingId } from "../lib";
 import { useFocusHeading } from "../components/useFocusHeading";
+import { AlertIcon, CheckIcon, LinkIcon } from "../icons";
 
 type State =
   | { step: "checking" }
@@ -22,8 +24,12 @@ const JOIN_ERRORS: Record<string, string> = {
   network: "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.",
 };
 
-export function MeetingPage() {
-  const { meetingId: rawId = "" } = useParams();
+export function MeetingPage({ dismissUpdate }: { dismissUpdate?: () => void }) {
+  const { meetingId = "" } = useParams();
+  return <MeetingFlow key={meetingId} rawId={meetingId} dismissUpdate={dismissUpdate} />;
+}
+
+function MeetingFlow({ rawId, dismissUpdate }: { rawId: string; dismissUpdate?: () => void }) {
   const meetingId = parseMeetingId(rawId);
   const justCreated = !!(useLocation().state as { created?: boolean } | null)?.created;
   const [state, setState] = useState<State>(() => (meetingId ? { step: "checking" } : notFound()));
@@ -61,52 +67,53 @@ export function MeetingPage() {
     document.title = state.step === "call" ? `Встреча ${meetingId} — SelfCall` : "SelfCall — видеовстречи";
   }, [state.step, meetingId]);
 
-  switch (state.step) {
-    case "checking":
-      return (
-        <main className="page page-center" aria-busy="true">
-          <p className="muted">Проверяем ссылку…</p>
-        </main>
-      );
+  const showUpdate = state.step !== "joining" && state.step !== "call";
+  return <ToastProvider dismissUpdate={showUpdate ? dismissUpdate : undefined}>{renderScreen()}</ToastProvider>;
 
-    case "prejoin":
-    case "joining":
-      return (
-        <PreJoin
-          info={state.info}
-          justCreated={justCreated}
-          joining={state.step === "joining"}
-          error={state.step === "prejoin" ? state.joinError : undefined}
-          initial={choices}
-          onJoin={(c) => join(state.info, c)}
-        />
-      );
+  function renderScreen() {
+    switch (state.step) {
+      case "checking":
+        return <Message tone="checking" title="Проверяем ссылку…" />;
 
-    case "call":
-      return (
-        <CallRoom
-          conn={state.conn}
-          choices={state.choices}
-          onLeave={(reason) => setState({ step: "left", reason })}
-        />
-      );
+      case "prejoin":
+      case "joining":
+        return (
+          <PreJoin
+            info={state.info}
+            justCreated={justCreated}
+            joining={state.step === "joining"}
+            error={state.step === "prejoin" ? state.joinError : undefined}
+            initial={choices}
+            onJoin={(c) => join(state.info, c)}
+          />
+        );
 
-    case "left":
-      return <LeftScreen reason={state.reason} onRejoin={check} />;
+      case "call":
+        return (
+          <CallRoom
+            conn={state.conn}
+            choices={state.choices}
+            onLeave={(reason) => setState({ step: "left", reason })}
+          />
+        );
 
-    case "error":
-      return (
-        <Message title={state.title} text={state.text}>
-          {state.retry && (
-            <button className="btn btn-primary" onClick={check}>
-              Попробовать снова
-            </button>
-          )}
-          <Link className="btn btn-secondary" to="/">
-            На главную
-          </Link>
-        </Message>
-      );
+      case "left":
+        return <LeftScreen reason={state.reason} onRejoin={check} />;
+
+      case "error":
+        return (
+          <Message tone="error" title={state.title} text={state.text}>
+            {state.retry && (
+              <button className="btn btn-primary" onClick={check}>
+                Попробовать снова
+              </button>
+            )}
+            <Link className={`btn ${state.retry ? "btn-secondary" : "btn-primary"}`} to="/">
+              На главную
+            </Link>
+          </Message>
+        );
+    }
   }
 }
 
@@ -145,7 +152,7 @@ const LEFT_TEXT: Record<LeaveReason, { title: string; text: string }> = {
 function LeftScreen({ reason, onRejoin }: { reason: LeaveReason; onRejoin: () => void }) {
   const { title, text } = LEFT_TEXT[reason];
   return (
-    <Message title={title} text={text}>
+    <Message tone={reason === "lost" ? "error" : "complete"} title={title} text={text}>
       <button className="btn btn-primary" onClick={onRejoin}>
         Вернуться во встречу
       </button>
@@ -156,17 +163,25 @@ function LeftScreen({ reason, onRejoin }: { reason: LeaveReason; onRejoin: () =>
   );
 }
 
-function Message({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
+function Message({ tone, title, text, children }: {
+  tone: "checking" | "complete" | "error";
+  title: string;
+  text?: string;
+  children?: React.ReactNode;
+}) {
   const heading = useFocusHeading<HTMLHeadingElement>();
+  const Icon = tone === "checking" ? LinkIcon : tone === "complete" ? CheckIcon : AlertIcon;
   return (
-    <main className="page page-center">
-      <div className="message">
-        <Logo link />
-        <h1 className="message-title" ref={heading} tabIndex={-1}>
-          {title}
-        </h1>
-        <p className="message-text">{text}</p>
-        <div className="message-actions">{children}</div>
+    <main className="page">
+      <header className="topbar"><Logo link /></header>
+      <div className="message-wrap">
+        <section className={`panel message message-${tone} screen-enter`}>
+          <span className="message-mark"><Icon /></span>
+          <h1 className="message-title" ref={heading} tabIndex={-1}>{title}</h1>
+          {text && <p className="message-text">{text}</p>}
+          {tone === "checking" && <div className="progress-track" role="progressbar" aria-label="Проверка ссылки" />}
+          {children && <div className="message-actions">{children}</div>}
+        </section>
       </div>
     </main>
   );

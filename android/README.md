@@ -1,54 +1,76 @@
 # SelfCall — Android
 
-Kotlin + Jetpack Compose + LiveKit Android SDK.
+Kotlin + Jetpack Compose + LiveKit Android SDK. Работает как веб-версия: встреча по ссылке, без регистрации.
 
-Three screens, matching the React app:
-1. **Name** — enter display name (saved to `SharedPreferences`)
-2. **Rooms** — list of 5 fixed rooms from `GET /rooms`
-3. **Call** — `RoomScope` + `VideoTrackView` from `livekit-android-compose-components`
+При первом создании встречи или входе по ссылке на `call.gamma.help` введите логин и пароль от SelfCall. Приложение запомнит их на телефоне в зашифрованном виде. Если пароль изменился, приложение предложит войти снова.
 
-## Requirements
+Экраны:
+1. **Главная** — «Создать встречу» или вход по ссылке/коду.
+2. **Перед входом** — предпросмотр камеры, микрофон и камера, ссылка на встречу (скопировать, отправить), имя (необязательно).
+3. **Звонок** — плитки участников (показ экрана другого участника — крупно), микрофон, камера, смена камеры, выход.
+4. **Вы вышли / Встреча не найдена / Нет связи** — как на сайте.
 
-- Android Studio **Ladybug (2024.2)** or newer
-- JDK 17 (bundled with Android Studio)
-- Test device / emulator running Android 8.0+ (API 26+)
-- Real camera/microphone strongly recommended for WebRTC testing
+Ещё:
+- Ссылки `https://call.gamma.help/m/...` открываются в приложении (из Telegram, браузера).
+- Звонок продолжается в фоне и при выключенном экране: служба с уведомлением «Идёт встреча».
+  Камера в фоне выключается и включается сама, когда приложение снова на экране.
+- «Назад» во время звонка сворачивает приложение, а не завершает звонок.
 
-## First run
+Чего пока нет: показа своего экрана с телефона.
 
-1. Open the `android/` folder in Android Studio (not the repo root).
-2. Wait for Gradle sync — AS will fetch the wrapper JAR, all plugins, and deps
-   (first sync: 5–10 min depending on network).
-3. If sync fails with "gradle-wrapper.jar not found", run once from the
-   `android/` folder:
-   ```
-   gradle wrapper --gradle-version 8.11.1
-   ```
-   (using any locally installed Gradle ≥ 8, or the one bundled with AS at
-   `<AS>/plugins/gradle/lib/gradle-*`).
+## Сборка
 
-4. Plug in a phone in developer mode, click ▶ Run.
+Нужны Android Studio 2026.2 (или новее) и Android SDK с платформой 37. Открывать папку `android/`.
 
-## Backend URL
+Скачайте `google-services.json` в настройках Android-приложения `ru.ifx.selfcall` в Firebase и положите его в `android/app/`. Gradle использует этот локальный файл при сборке.
 
-Defaults to `https://api.if-x.ru` (production).
+Из терминала:
 
-Override locally by adding to `~/.gradle/gradle.properties` or project-local
-`android/gradle.properties`:
-
-```
-SELFCALL_API_BASE=http://10.0.2.2:8000   # emulator -> host localhost
-# or
-SELFCALL_API_BASE=http://192.168.X.X:8000  # real device, host's LAN IP
+```bash
+cd android
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew installDebug         # поставить на подключённый телефон
 ```
 
-Note: for non-HTTPS URLs you'll also need to allow cleartext traffic
-(add `android:usesCleartextTraffic="true"` in `AndroidManifest.xml`
-`<application>` tag for debug builds).
+## Версии и сборки выпуска
 
-## Versions
+Версию меняем в [version.properties](version.properties). В номере `X.Y.Z`:
 
-Key dep versions are in `gradle/libs.versions.toml`. If LiveKit compose
-components and the base SDK fall out of sync during a future upgrade,
-bump `livekitCompose` to the version matched in
-[LiveKit's release notes](https://github.com/livekit/components-android/releases).
+- `X` увеличиваем при несовместимом изменении. `Y` и `Z` сбрасываем в ноль.
+- `Y` увеличиваем при добавлении совместимой функции. `Z` сбрасываем в ноль.
+- `Z` увеличиваем при исправлении ошибки или небольшой правке интерфейса.
+
+Каждая сборка выпуска получает следующий целый `versionCode`, в том числе при повторной сборке той же версии. Первая сборка `0.4.0` имеет номер `5`. Обычные отладочные сборки счётчик выпусков не расходуют. Запустите с Python 3.11 или новее из корня проекта:
+
+```bash
+python3 android/scripts/release.py build
+```
+
+Команда проверяет подпись и сохраняет APK в `android/releases/`, например `selfcall-5.apk`. Предыдущие сборки остаются в этой папке на Mac.
+
+Постоянный ключ `selfcall-release.p12`, пароль `signing.properties` и счётчик `last-version-code` хранятся в `~/Library/Application Support/SelfCall/android-signing/`. Для выпуска с другого Mac перенесите их из зашифрованной резервной копии. Ключ и пароль хранятся только у выпускающего.
+
+На телефоне с отладочной версией `0.3.0` понадобится один раз удалить её, установить подписанный APK и снова войти. При удалении теряются локальные настройки. Затем SelfCall скачивает APK и открывает установщик Android. При первом таком обновлении Android может попросить разрешить SelfCall устанавливать приложения.
+
+Публикация APK и управление обязательным обновлением описаны в [порядке выпуска на сервере](../infra/README.md#выпуск-android).
+
+## Адрес сервера
+
+По умолчанию `https://call.gamma.help`. Для локального сервиса из `infra/local` (http://localhost:8080):
+
+```bash
+./gradlew installDebug -PSELFCALL_SERVER=http://10.0.2.2:8080        # эмулятор
+./gradlew installDebug -PSELFCALL_SERVER=http://192.168.X.X:8080     # телефон в той же сети
+```
+
+Без HTTPS приложение само разрешает открытый трафик.
+
+## Открытие ссылок в приложении (App Links)
+
+Android открывает ссылки сразу в приложении, только если сайт подтверждает это файлом
+`https://<домен>/.well-known/assetlinks.json` (лежит в `frontend/public/.well-known/`).
+В нём есть отпечаток постоянного ключа выпуска и отпечаток отладочного ключа для телефонов, которые ещё на `0.3.0`.
+
+Пока файл не выложен на сервер, ссылка откроется в браузере. Включить вручную:
+Настройки → Приложения → SelfCall → Открывать по умолчанию → добавить `call.gamma.help`.

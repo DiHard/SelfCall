@@ -10,6 +10,10 @@ server {
     client_max_body_size 1M;
 
     location ^~ /.well-known/acme-challenge/ { root /var/www/html; }
+    location = /.well-known/assetlinks.json {
+        auth_basic off;
+        proxy_pass http://127.0.0.1:__WEB_PORT__;
+    }
     location ~ /\. { deny all; }
 
     # Сигналинг LiveKit — WebSocket, звонок держит соединение часами

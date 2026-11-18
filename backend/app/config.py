@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +39,11 @@ class Settings(BaseSettings):
     join_per_ip_per_minute: int = 30
 
     token_ttl_minutes: int = 15
+
+    fcm_credentials_file: str = ""
+    direct_calls_proxy_secret: str = ""
+    direct_calls_database: str = "/var/lib/selfcall/direct-calls.sqlite3"
+    android_releases_dir: Path | None = None
 
     @property
     def cors_origins_list(self) -> list[str]:

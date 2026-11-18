@@ -53,25 +53,31 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     // Fallback for non-secure contexts (http on a LAN address)
     const ta = document.createElement("textarea");
+    const focused = document.activeElement;
     ta.value = text;
     ta.style.position = "fixed";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    const ok = document.execCommand("copy");
-    ta.remove();
-    return ok;
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      ta.remove();
+      if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
+    }
   }
 }
 
-/** Opens the system share sheet on phones; returns false where it isn't available. */
+/** Opens the system share sheet. A cancelled share also counts as handled. */
 export async function shareLink(url: string): Promise<boolean> {
   if (!navigator.share || !window.matchMedia("(pointer: coarse)").matches) return false;
   try {
     await navigator.share({ title: "Видеовстреча", url });
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return error instanceof DOMException && error.name === "AbortError";
   }
 }
 

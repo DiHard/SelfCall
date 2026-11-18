@@ -18,5 +18,6 @@ rsync -az --delete \
   --exclude __pycache__ --exclude .pytest_cache --exclude '.env' \
   backend frontend infra "$SERVER:$REMOTE_DIR/"
 
-echo "==> Пересобираю и перезапускаю контейнеры"
-ssh -t "$SERVER" "cd $REMOTE_DIR/infra && test -f .env || { echo 'Нет infra/.env на сервере, см. infra/README.md'; exit 1; } && sudo docker compose up -d --build --remove-orphans && sudo docker compose ps"
+echo "==> Собираю образы с ограничением ресурсов и обновляю SelfCall"
+printf -v remote_infra '%q' "$REMOTE_DIR/infra"
+ssh -t "$SERVER" "cd $remote_infra && sudo bash scripts/deploy-on-server.sh"

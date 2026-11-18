@@ -14,9 +14,18 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
         mavenCentral()
-        maven(url = "https://jitpack.io")
+        // LiveKit берёт отсюда audioswitch (переключение динамик/гарнитура)
+        maven(url = "https://jitpack.io") {
+            content { includeGroup("com.github.davidliu") }
+        }
     }
 }
 

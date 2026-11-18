@@ -92,7 +92,7 @@ export function PreJoin({ info, justCreated, joining, error, initial, onJoin }: 
 
   // ----- Camera preview -----
   useEffect(() => {
-    if (!camOn) return;
+    if (!camOn || joining) return;
     let track: LocalVideoTrack | null = null;
     let cancelled = false;
     createLocalVideoTrack({ deviceId: camId, resolution: { width: 1280, height: 720 } })
@@ -108,7 +108,7 @@ export function PreJoin({ info, justCreated, joining, error, initial, onJoin }: 
       track?.stop();
       setVideoTrack(null);
     };
-  }, [camOn, camId, camAttempt]);
+  }, [camOn, camId, camAttempt, joining]);
 
   useEffect(() => {
     if (videoTrack && videoEl.current) videoTrack.attach(videoEl.current);
@@ -119,7 +119,7 @@ export function PreJoin({ info, justCreated, joining, error, initial, onJoin }: 
 
   // ----- Microphone check -----
   useEffect(() => {
-    if (!micOn) return;
+    if (!micOn || joining) return;
     let track: LocalAudioTrack | null = null;
     let cancelled = false;
     createLocalAudioTrack({ deviceId: micId })
@@ -135,7 +135,7 @@ export function PreJoin({ info, justCreated, joining, error, initial, onJoin }: 
       track?.stop();
       setAudioTrack(null);
     };
-  }, [micOn, micId, micAttempt]);
+  }, [micOn, micId, micAttempt, joining]);
 
   // ----- Device lists (labels appear only after permission is granted) -----
   useEffect(() => {
@@ -154,6 +154,7 @@ export function PreJoin({ info, justCreated, joining, error, initial, onJoin }: 
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (joining) return;
     const choices: JoinChoices = {
       name: name.trim(),
       // Don't ask LiveKit for a device the browser refused — join without it instead
@@ -181,93 +182,102 @@ export function PreJoin({ info, justCreated, joining, error, initial, onJoin }: 
         <Logo link />
       </header>
 
-      <div className="prejoin">
-        <section className="preview" aria-label="Предпросмотр камеры">
-          <div className="preview-frame">
-            {camOn && videoTrack ? (
-              <video ref={videoEl} className="preview-video" muted playsInline autoPlay />
-            ) : (
-              <div className="preview-off">
-                {camOn && camProblem
-                  ? PROBLEM_TEXT[camProblem].cam
-                  : camOn
-                    ? "Включаем камеру…"
-                    : "Камера выключена"}
-              </div>
-            )}
-            <div className="preview-controls">
-              <button
-                type="button"
-                className={`round-btn ${micLive ? "" : "round-btn-off"}`}
-                onClick={toggleMic}
-                aria-pressed={micLive}
-                aria-label="Микрофон"
-                title={micLive ? "Выключить микрофон" : "Включить микрофон"}
-              >
-                {micLive ? <MicIcon /> : <MicOffIcon />}
-              </button>
-              <button
-                type="button"
-                className={`round-btn ${camLive ? "" : "round-btn-off"}`}
-                onClick={toggleCam}
-                aria-pressed={camLive}
-                aria-label="Камера"
-                title={camLive ? "Выключить камеру" : "Включить камеру"}
-              >
-                {camLive ? <CamIcon /> : <CamOffIcon />}
-              </button>
-            </div>
-            {micLive && audioTrack && <MicLevel track={audioTrack} />}
-          </div>
-
-          {micOn && micProblem && (
-            <p className="field-error" role="alert">
-              {PROBLEM_TEXT[micProblem].mic}
-            </p>
-          )}
-
-          {(cams.length > 1 || mics.length > 1) && (
-            <div className="device-selects">
-              {mics.length > 1 && (
-                <DeviceSelect label="Микрофон" devices={mics} value={activeMicId} onChange={setMicId} />
-              )}
-              {cams.length > 1 && (
-                <DeviceSelect label="Камера" devices={cams} value={activeCamId} onChange={setCamId} />
-              )}
-            </div>
-          )}
-        </section>
-
-        <section className="prejoin-side">
-          <h1 className="prejoin-title" ref={heading} tabIndex={-1}>{justCreated ? "Встреча создана" : "Готовы войти?"}</h1>
+      <div className="prejoin screen-enter">
+        <div className="prejoin-heading">
+          <h1 className="prejoin-title" ref={heading} tabIndex={-1}>{justCreated ? "Встреча создана" : "Вход во встречу"}</h1>
           <p className="muted">{justCreated ? "Отправьте ссылку тем, с кем хотите поговорить." : presence}</p>
+        </div>
+        <div className="prejoin-content">
+          <section className="preview" aria-label="Предпросмотр камеры">
+            <div className="preview-frame">
+              {camOn && videoTrack && !joining ? (
+                <video ref={videoEl} className="preview-video" muted playsInline autoPlay />
+              ) : (
+                <div className="preview-off" role="status">
+                  {camOn && !camProblem && !joining ? <CamIcon /> : <CamOffIcon />}
+                  <span>
+                    {joining ? "Подключаемся…" : camOn && camProblem
+                      ? PROBLEM_TEXT[camProblem].cam
+                      : camOn ? "Включаем камеру…" : "Камера выключена"}
+                  </span>
+                </div>
+              )}
+              <div className="preview-controls">
+                <button
+                  type="button"
+                  className={`round-btn ${micLive ? "" : "round-btn-off"}`}
+                  onClick={toggleMic}
+                  disabled={joining}
+                  aria-pressed={micLive}
+                  aria-label="Микрофон"
+                  title={micLive ? "Выключить микрофон" : "Включить микрофон"}
+                >
+                  {micLive ? <MicIcon key="on" /> : <MicOffIcon key="off" />}
+                </button>
+                <button
+                  type="button"
+                  className={`round-btn ${camLive ? "" : "round-btn-off"}`}
+                  onClick={toggleCam}
+                  disabled={joining}
+                  aria-pressed={camLive}
+                  aria-label="Камера"
+                  title={camLive ? "Выключить камеру" : "Включить камеру"}
+                >
+                  {camLive ? <CamIcon key="on" /> : <CamOffIcon key="off" />}
+                </button>
+              </div>
+              {micLive && audioTrack && !joining && <MicLevel track={audioTrack} />}
+            </div>
 
-          <LinkBox meetingId={info.id} />
-
-          <form className="prejoin-form" onSubmit={submit}>
-            <label className="field-label" htmlFor="name">
-              Ваше имя <span className="muted">— необязательно</span>
-            </label>
-            <input
-              id="name"
-              className="input"
-              type="text"
-              autoComplete="name"
-              maxLength={40}
-              placeholder="Гость"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <button className="btn btn-primary btn-lg" type="submit" disabled={joining}>
-              {joining ? "Входим…" : "Войти во встречу"}
-            </button>
-            {error && (
+            {micOn && micProblem && (
               <p className="field-error" role="alert">
-                {error}
+                {PROBLEM_TEXT[micProblem].mic}
               </p>
             )}
-          </form>
-        </section>
+
+            {(cams.length > 1 || mics.length > 1) && (
+              <div className="device-selects">
+                {mics.length > 1 && (
+                  <DeviceSelect label="Микрофон" devices={mics} value={activeMicId} disabled={joining} onChange={setMicId} />
+                )}
+                {cams.length > 1 && (
+                  <DeviceSelect label="Камера" devices={cams} value={activeCamId} disabled={joining} onChange={setCamId} />
+                )}
+              </div>
+            )}
+          </section>
+
+          <div className="panel prejoin-side">
+            <LinkBox meetingId={info.id} justCreated={justCreated} />
+
+            <form className="prejoin-form" onSubmit={submit}>
+              <label className="field-label" htmlFor="name">
+                Ваше имя <span className="muted">— необязательно</span>
+              </label>
+              <input
+                id="name"
+                name="name"
+                className="input"
+                type="text"
+                autoComplete="name"
+                maxLength={40}
+                placeholder="Гость"
+                value={name}
+                disabled={joining}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <button className="btn btn-primary btn-lg" type="submit" disabled={joining} aria-busy={joining}>
+                {joining && <span className="busy-mark" aria-hidden="true" />}
+                {joining ? "Входим…" : "Войти во встречу"}
+              </button>
+              {error && (
+                <p className="field-error" role="alert">
+                  {error}
+                </p>
+              )}
+            </form>
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -277,12 +287,13 @@ function DeviceSelect(props: {
   label: string;
   devices: MediaDeviceInfo[];
   value?: string;
+  disabled: boolean;
   onChange: (id: string) => void;
 }) {
   return (
     <label className="device-select">
       <span className="field-label">{props.label}</span>
-      <select className="input" value={props.value} onChange={(e) => props.onChange(e.target.value)}>
+      <select className="input" value={props.value} disabled={props.disabled} onChange={(e) => props.onChange(e.target.value)}>
         {props.devices.map((d, i) => (
           <option key={d.deviceId} value={d.deviceId}>
             {d.label || `${props.label} ${i + 1}`}

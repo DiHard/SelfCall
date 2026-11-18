@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Камера из значка сайта (frontend/public/favicon.svg), увеличенная под безопасную зону значка -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="@color/ic_launcher_foreground"
-        android:pathData="M54,40 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0 M38,62 h32 a8,8 0 0,1 8,8 v4 h-48 v-4 a8,8 0 0,1 8,-8 z" />
+    <group
+        android:scaleX="2.4"
+        android:scaleY="2.4"
+        android:translateX="13.2"
+        android:translateY="15.6">
+        <path
+            android:fillColor="@color/ic_launcher_foreground"
+            android:pathData="M9,12.5a2.5,2.5 0,0 1,2.5 -2.5h6a2.5,2.5 0,0 1,2.5 2.5v7a2.5,2.5 0,0 1,-2.5 2.5h-6A2.5,2.5 0,0 1,9 19.5z" />
+        <path
+            android:fillColor="@color/ic_launcher_foreground"
+            android:pathData="m21,14.5 l3.2,-2.1a0.5,0.5 0,0 1,0.8 0.4v6.4a0.5,0.5 0,0 1,-0.8 0.4L21,17.5z" />
+    </group>
 </vector>
